@@ -12,7 +12,7 @@
 		error = '';
 
 		try {
-			const success = await auth.login(email, password);
+			const success = await auth.login({ email, password });
 			if (!success) {
 				error = 'Credenciales inválidas. Intente nuevamente.';
 			}
@@ -106,9 +106,9 @@
 
 		<div class="bg-gray-50 px-8 py-4 border-t border-gray-100 text-center">
 			<p class="text-xs text-gray-500">
-				¿Olvidaste tu contraseña? <a
-					href="#"
-					class="text-indigo-600 hover:text-indigo-800 font-medium">Recuperar acceso</a
+				¿No tienes una cuenta? <a
+					href="/auth/sign-up"
+					class="text-indigo-600 hover:text-indigo-800 font-medium">Crear cuenta</a
 				>
 			</p>
 		</div>

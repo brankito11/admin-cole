@@ -51,7 +51,7 @@
 		<!-- Main Action -->
 		<div class="animate-fade-in-up delay-200">
 			<a
-				href="/login"
+				href="/auth/sign-in"
 				class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300"
 			>
 				<span>🔐</span>

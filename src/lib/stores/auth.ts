@@ -1,12 +1,13 @@
 import { writable } from 'svelte/store';
 import { goto } from '$app/navigation';
+import { authService } from '$lib/services/auth.service';
+import type { LoginCredentials, RegisterCredentials } from '$lib/interfaces';
+import { browser } from '$app/environment';
+import { AUTH_TOKEN_KEY } from '$lib/constants';
 
 export interface User {
-    id: number;
-    nombre: string;
-    apellido: string;
     email: string;
-    role: 'admin' | 'parent';
+    // Add other fields if available
 }
 
 function createAuthStore() {
@@ -14,43 +15,44 @@ function createAuthStore() {
 
     return {
         subscribe,
-        login: async (email: string, password: string): Promise<boolean> => {
-            // Mock login logic
-            // In a real app, this would be an API call
+        login: async (credentials: LoginCredentials): Promise<boolean> => {
+            try {
+                const response = await authService.login(credentials);
+                if (response.access_token) {
+                    if (browser) {
+                        localStorage.setItem(AUTH_TOKEN_KEY, response.access_token);
+                    }
+                    // For now, just setting the email from credentials as we don't get user info in login response
+                    set({ email: credentials.email });
 
-            // Admin User
-            if (email === 'admin@admin.com' && password === 'admin123') {
-                const user: User = {
-                    id: 1,
-                    nombre: 'Admin',
-                    apellido: 'Principal',
-                    email: 'admin@admin.com',
-                    role: 'admin'
-                };
-                set(user);
-                goto('/admin');
-                return true;
+                    // Redirect to dashboard/app
+                    goto('/app');
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error('Login error:', error);
+                return false;
             }
-
-            // Parent User
-            if (email === 'padre@padre.com' && password === 'padre123') {
-                const user: User = {
-                    id: 2,
-                    nombre: 'Juan',
-                    apellido: 'Pérez',
-                    email: 'padre@padre.com',
-                    role: 'parent'
-                };
-                set(user);
-                goto('/app');
-                return true;
+        },
+        register: async (credentials: RegisterCredentials): Promise<boolean> => {
+            try {
+                const response = await authService.register(credentials);
+                if (response._id) {
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error('Registration error:', error);
+                return false;
             }
-
-            return false;
         },
         logout: () => {
+            if (browser) {
+                localStorage.removeItem(AUTH_TOKEN_KEY);
+            }
             set(null);
-            goto('/login');
+            goto('/auth/sign-in');
         }
     };
 }
