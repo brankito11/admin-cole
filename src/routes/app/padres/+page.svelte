@@ -139,12 +139,7 @@
 		}
 	}
 
-	$effect(() => {
-		// Filter padres based on search query
-		if (searchQuery) {
-			// In a real app, you'd want to do server-side filtering
-		}
-	});
+
 
 	const filteredPadres = $derived(
 		padres.filter(
@@ -354,13 +349,21 @@
 {#if showModal}
 	<div
 		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in"
+		role="button"
+		tabindex="0"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) closeModal();
 		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeModal();
+		}}
 	>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
 			class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
+			role="document"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 		>
 			<h2 class="text-2xl font-bold text-gray-900 mb-6">
 				{modalMode === 'create' ? '➕ Nuevo Padre' : '✏️ Editar Padre'}
@@ -448,13 +451,21 @@
 {#if showDeleteConfirm && padreToDelete}
 	<div
 		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in"
+		role="button"
+		tabindex="0"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) cancelDelete();
 		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') cancelDelete();
+		}}
 	>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
 			class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
+			role="document"
 			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 		>
 			<div class="text-center">
 				<div class="text-6xl mb-4">⚠️</div>

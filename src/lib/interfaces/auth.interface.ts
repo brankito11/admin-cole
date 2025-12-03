@@ -15,7 +15,7 @@ export interface RegisterCredentials {
 	password: string;
 }
 
-export interface RegisterResponse {
+export interface User {
 	email: string;
 	username: string;
 	full_name: string;
@@ -23,3 +23,7 @@ export interface RegisterResponse {
 	is_active: boolean;
 	is_superuser: boolean;
 }
+
+export type RegisterResponse = User;
+
+export type GetUsersResponse = User[];
