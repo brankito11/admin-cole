@@ -5,7 +5,8 @@ import type {
 	RegisterCredentials,
 	RegisterResponse,
 	User,
-	GetUsersResponse
+	GetUsersResponse,
+	UserUpdateData
 } from '$lib/interfaces';
 
 class AuthService {
@@ -31,6 +32,23 @@ class AuthService {
 	async getAllUsers(skip: number = 0, limit: number = 100): Promise<GetUsersResponse> {
 		const response = await apiCole.get<GetUsersResponse>(`/auth/?skip=${skip}&limit=${limit}`);
 		return response;
+	}
+
+	// Obtener usuario por ID
+	async getUserById(userId: string): Promise<User> {
+		const response = await apiCole.get<User>(`/auth/${userId}`);
+		return response;
+	}
+
+	// Actualizar usuario
+	async updateUser(userId: string, data: UserUpdateData): Promise<User> {
+		const response = await apiCole.put<User>(`/auth/${userId}`, data);
+		return response;
+	}
+
+	// Eliminar usuario
+	async deleteUser(userId: string): Promise<void> {
+		await apiCole.delete(`/auth/${userId}`);
 	}
 }
 

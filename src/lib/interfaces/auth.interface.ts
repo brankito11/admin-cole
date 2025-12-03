@@ -24,6 +24,13 @@ export interface User {
 	is_superuser: boolean;
 }
 
+export interface UserUpdateData {
+	email?: string;
+	username?: string;
+	full_name?: string;
+	password?: string;
+}
+
 export type RegisterResponse = User;
 
 export type GetUsersResponse = User[];
