@@ -15,18 +15,18 @@
 		error = '';
 
 		try {
-			const success = await auth.register({
+			const result = await auth.register({
 				email,
 				username,
 				full_name,
 				password
 			});
 
-			if (success) {
+			if (result.success) {
 				// Redirect to login on success
 				goto('/auth/sign-in');
 			} else {
-				error = 'Error al registrarse. Por favor verifique sus datos.';
+				error = result.error || 'Error al registrarse. Por favor verifique sus datos.';
 			}
 		} catch (e) {
 			error = 'Ocurrió un error al registrarse.';

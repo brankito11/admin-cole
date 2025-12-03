@@ -1,9 +1,3 @@
 export * from "./auth.interface"
 export * from "./error.interface"
-export * from "./user.interface"
-export * from "./dropdownOption.interface"
-export * from "./student.interface"
-export * from "./course.interface"
-export * from "./enrollment.interface"
-export * from "./payment.interface"
-export * from "./discount.interface"
+

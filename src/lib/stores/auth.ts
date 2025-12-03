@@ -35,16 +35,19 @@ function createAuthStore() {
                 return false;
             }
         },
-        register: async (credentials: RegisterCredentials): Promise<boolean> => {
+        register: async (credentials: RegisterCredentials): Promise<{ success: boolean; error?: string }> => {
             try {
                 const response = await authService.register(credentials);
                 if (response._id) {
-                    return true;
+                    return { success: true };
                 }
-                return false;
-            } catch (error) {
+                return { success: false, error: 'No se pudo completar el registro' };
+            } catch (error: any) {
                 console.error('Registration error:', error);
-                return false;
+                return {
+                    success: false,
+                    error: error.message || 'Ocurrió un error al registrarse'
+                };
             }
         },
         logout: () => {

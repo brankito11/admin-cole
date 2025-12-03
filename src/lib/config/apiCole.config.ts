@@ -2,7 +2,7 @@ import { ErrorType } from '$lib/interfaces';
 import { AppError, errorService } from '$lib/services';
 import { API_CONFIG, defaultHeaders } from './api.config';
 import { browser } from '$app/environment';
-import { AUTH_TOKEN_KEY } from '$lib/constants';
+import { AUTH_TOKEN_KEY, USER_DATA_KEY } from '$lib/constants';
 
 interface RequestOptions {
 	requireAuth?: boolean;
@@ -69,13 +69,13 @@ class ApiCole {
 				// Si es error 401, limpiar token
 				if (response.status === 401) {
 					if (browser) {
-						localStorage.removeItem('auth_token');
-						localStorage.removeItem('user_data');
+						localStorage.removeItem(AUTH_TOKEN_KEY);
+						localStorage.removeItem(USER_DATA_KEY);
 					}
 				}
 
 				throw new AppError(
-					errorBody.message || 'Error en la solicitud',
+					errorBody.message || errorBody.detail || 'Error en la solicitud',
 					errorType,
 					response.status
 				);
