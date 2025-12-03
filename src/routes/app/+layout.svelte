@@ -7,7 +7,8 @@
 		{ href: '/app/boletin-notas', label: 'Boletín de Notas', icon: '📊' },
 		{ href: '/app/licencias', label: 'Licencias', icon: '📋' },
 		{ href: '/app/pagos', label: 'Pagos', icon: '💳' },
-		{ href: '/app/reuniones', label: 'Reuniones', icon: '👥' }
+		{ href: '/app/reuniones', label: 'Reuniones', icon: '👥' },
+		{ href: '/app/padres', label: 'Padres', icon: '👨‍👩‍👧' }
 	];
 </script>
 

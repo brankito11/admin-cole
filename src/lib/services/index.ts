@@ -1,3 +1,4 @@
 export * from './auth.service';
 export * from './error.service';
 export * from './student.service';
+export * from './padre.service';
