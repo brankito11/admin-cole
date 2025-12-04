@@ -1,4 +1,5 @@
 export * from "./auth.interface"
 export * from "./error.interface"
 export * from "./padre.interface"
-
+export * from "./reunion.interface"
+export * from "./user.interface"

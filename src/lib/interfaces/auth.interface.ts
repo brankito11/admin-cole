@@ -1,3 +1,5 @@
+import type { User } from './user.interface';
+
 export interface LoginCredentials {
 	username: string;
 	password: string;
@@ -17,17 +19,6 @@ export interface RegisterCredentials {
 	password: string;
 }
 
-export interface User {
-	email: string;
-	username: string;
-	nombre: string;
-	apellido: string;
-	role: string;
-	_id: string;
-	is_active: boolean;
-	is_superuser: boolean;
-}
-
 export interface UserUpdateData {
 	email?: string;
 	username?: string;
@@ -36,6 +27,19 @@ export interface UserUpdateData {
 	password?: string;
 }
 
+export interface CreateAdminCredentials {
+	username: string;
+	password: string;
+}
+
+export interface ChangePasswordData {
+	old_password: string;
+	new_password: string;
+}
+
+export interface UpdateProfileRequest {
+	username: string;
+}
+
 export type RegisterResponse = User;
 
-export type GetUsersResponse = User[];

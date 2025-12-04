@@ -1,71 +1,199 @@
 <script lang="ts">
-	let showModal = false;
-	let editingMeeting: any = null;
+	import { onMount } from 'svelte';
+	import { reunionService } from '$lib/services';
+	import { AUTH_TOKEN_KEY } from '$lib/constants';
+	import type { Reunion, ReunionCreate, ReunionUpdate } from '$lib/interfaces';
 
-	const allMeetings = [
-		{
-			id: 1,
-			title: 'Reunión de Padres - 2do Trimestre',
-			date: '2024-12-15',
-			time: '18:00',
-			location: 'Aula Magna',
-			type: 'General',
-			status: 'Programada',
-			attendees: 45,
-			capacity: 50
-		},
-		{
-			id: 2,
-			title: 'Entrevista con Profesor de Matemáticas',
-			date: '2024-11-28',
-			time: '10:30',
-			location: 'Sala de Profesores',
-			type: 'Individual',
-			status: 'Completada',
-			attendees: 1,
-			capacity: 1
-		},
-		{
-			id: 3,
-			title: 'Feria de Ciencias',
-			date: '2024-10-20',
-			time: '09:00',
-			location: 'Patio Central',
-			type: 'Evento',
-			status: 'Completada',
-			attendees: 120,
-			capacity: 150
-		},
-		{
-			id: 4,
-			title: 'Reunión de Planificación Académica',
-			date: '2024-12-10',
-			time: '14:00',
-			location: 'Sala de Conferencias',
-			type: 'General',
-			status: 'Programada',
-			attendees: 15,
-			capacity: 30
-		}
-	];
+	let reuniones: Reunion[] = $state([]);
+	let loading = $state(false);
+	let error = $state('');
+	let searchTerm = $state('');
+	let filterType = $state('Todos');
+	let filterStatus = $state('Todos');
 
-	let searchTerm = '';
-	let filterType = 'Todos';
-	let filterStatus = 'Todos';
+	// Modal states
+	let showModal = $state(false);
+	let modalMode: 'create' | 'edit' = $state('create');
+	let selectedReunion: Reunion | null = $state(null);
+	let showDeleteConfirm = $state(false);
+	let reunionToDelete: Reunion | null = $state(null);
 
-	$: filteredMeetings = allMeetings.filter((meeting) => {
-		const matchesSearch =
-			meeting.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			meeting.location.toLowerCase().includes(searchTerm.toLowerCase());
-		const matchesType = filterType === 'Todos' || meeting.type === filterType;
-		const matchesStatus = filterStatus === 'Todos' || meeting.status === filterStatus;
-		return matchesSearch && matchesType && matchesStatus;
+	// Form data
+	let formData = $state({
+		nombre_reunion: '',
+		tema: '',
+		fecha: '',
+		hora_inicio: '',
+		hora_conclusion: ''
 	});
 
-	function getTypeStyle(type: string) {
-		if (type === 'General') return 'bg-purple-100 text-purple-700 border-purple-200';
-		if (type === 'Individual') return 'bg-blue-100 text-blue-700 border-blue-200';
-		return 'bg-orange-100 text-orange-700 border-orange-200';
+	onMount(() => {
+		loadReuniones();
+	});
+
+	async function loadReuniones() {
+		loading = true;
+		error = '';
+		try {
+			const token = localStorage.getItem(AUTH_TOKEN_KEY);
+			if (!token) {
+				error = 'No se encontró el token de autenticación';
+				return;
+			}
+
+			const response = await reunionService.getAllReuniones(token);
+			reuniones = response;
+		} catch (err: any) {
+			error = err.message || 'Error al cargar reuniones';
+		} finally {
+			loading = false;
+		}
+	}
+
+	function openCreateModal() {
+		modalMode = 'create';
+		selectedReunion = null;
+		formData = {
+			nombre_reunion: '',
+			tema: '',
+			fecha: '',
+			hora_inicio: '',
+			hora_conclusion: ''
+		};
+		showModal = true;
+	}
+
+	function openEditModal(reunion: Reunion) {
+		modalMode = 'edit';
+		selectedReunion = reunion;
+		formData = {
+			nombre_reunion: reunion.nombre_reunion,
+			tema: reunion.tema,
+			fecha: reunion.fecha.split('T')[0], // Extract date only
+			hora_inicio: reunion.hora_inicio,
+			hora_conclusion: reunion.hora_conclusion
+		};
+		showModal = true;
+	}
+
+	function closeModal() {
+		showModal = false;
+		selectedReunion = null;
+	}
+
+	async function handleSubmit() {
+		loading = true;
+		error = '';
+		try {
+			const token = localStorage.getItem(AUTH_TOKEN_KEY);
+			if (!token) {
+				error = 'No se encontró el token de autenticación';
+				return;
+			}
+
+			// Prepare data with ISO format for fecha
+			const dataToSend = {
+				...formData,
+				fecha: new Date(formData.fecha).toISOString()
+			};
+
+			if (modalMode === 'create') {
+				await reunionService.createReunion(token, dataToSend as ReunionCreate);
+			} else if (selectedReunion) {
+				await reunionService.updateReunion(
+					token,
+					selectedReunion._id,
+					dataToSend as ReunionUpdate
+				);
+			}
+			closeModal();
+			await loadReuniones();
+		} catch (err: any) {
+			error = err.message || 'Error al guardar reunión';
+		} finally {
+			loading = false;
+		}
+	}
+
+	function confirmDelete(reunion: Reunion) {
+		reunionToDelete = reunion;
+		showDeleteConfirm = true;
+	}
+
+	async function handleDelete() {
+		if (!reunionToDelete) return;
+		loading = true;
+		error = '';
+		try {
+			const token = localStorage.getItem(AUTH_TOKEN_KEY);
+			if (!token) {
+				error = 'No se encontró el token de autenticación';
+				return;
+			}
+
+			await reunionService.deleteReunion(token, reunionToDelete._id);
+			showDeleteConfirm = false;
+			reunionToDelete = null;
+			await loadReuniones();
+		} catch (err: any) {
+			error = err.message || 'Error al eliminar reunión';
+		} finally {
+			loading = false;
+		}
+	}
+
+	function cancelDelete() {
+		showDeleteConfirm = false;
+		reunionToDelete = null;
+	}
+
+	const filteredReuniones = $derived(
+		reuniones.filter((r) => {
+			const matchesSearch =
+				r.nombre_reunion.toLowerCase().includes(searchTerm.toLowerCase()) ||
+				r.tema.toLowerCase().includes(searchTerm.toLowerCase());
+
+			const matchesType = filterType === 'Todos' || r.tema === filterType;
+
+			// Calculate status based on date
+			const reunionDate = new Date(r.fecha);
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			reunionDate.setHours(0, 0, 0, 0);
+			const status = reunionDate < today ? 'Completada' : 'Programada';
+
+			const matchesStatus = filterStatus === 'Todos' || status === filterStatus;
+
+			return matchesSearch && matchesType && matchesStatus;
+		})
+	);
+
+	const programadas = $derived(
+		reuniones.filter((r) => {
+			const reunionDate = new Date(r.fecha);
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			reunionDate.setHours(0, 0, 0, 0);
+			return reunionDate >= today;
+		}).length
+	);
+
+	const completadas = $derived(
+		reuniones.filter((r) => {
+			const reunionDate = new Date(r.fecha);
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			reunionDate.setHours(0, 0, 0, 0);
+			return reunionDate < today;
+		}).length
+	);
+
+	function getStatusForReunion(reunion: Reunion): string {
+		const reunionDate = new Date(reunion.fecha);
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		reunionDate.setHours(0, 0, 0, 0);
+		return reunionDate < today ? 'Completada' : 'Programada';
 	}
 
 	function getStatusStyle(status: string) {
@@ -73,32 +201,17 @@
 		if (status === 'Programada') return 'bg-green-100 text-green-700 border-green-200';
 		return 'bg-yellow-100 text-yellow-700 border-yellow-200';
 	}
-
-	function handleCreate() {
-		editingMeeting = null;
-		showModal = true;
-	}
-
-	function handleEdit(meeting: any) {
-		editingMeeting = meeting;
-		showModal = true;
-	}
-
-	function handleDelete(id: number) {
-		if (confirm('¿Estás seguro de eliminar esta reunión/evento?')) {
-			console.log('Deleting meeting:', id);
-		}
-	}
 </script>
 
 <div class="space-y-6 animate-fade-in">
+	<!-- Header -->
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-3xl font-bold text-gray-900">Gestión de Reuniones y Eventos</h1>
 			<p class="text-gray-600 mt-1">Administra todas las actividades escolares</p>
 		</div>
 		<button
-			on:click={handleCreate}
+			onclick={openCreateModal}
 			class="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
@@ -106,17 +219,22 @@
 		</button>
 	</div>
 
+	<!-- Error Message -->
+	{#if error}
+		<div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg animate-shake" role="alert">
+			<p class="text-red-700 font-medium">{error}</p>
+		</div>
+	{/if}
+
 	<!-- Summary Cards -->
-	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 		<div
 			class="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-green-100 text-sm font-medium">Programadas</p>
-					<p class="text-3xl font-bold mt-2">
-						{allMeetings.filter((m) => m.status === 'Programada').length}
-					</p>
+					<p class="text-3xl font-bold mt-2">{programadas}</p>
 				</div>
 				<div class="text-5xl opacity-80">📅</div>
 			</div>
@@ -126,23 +244,9 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-gray-100 text-sm font-medium">Completadas</p>
-					<p class="text-3xl font-bold mt-2">
-						{allMeetings.filter((m) => m.status === 'Completada').length}
-					</p>
+					<p class="text-3xl font-bold mt-2">{completadas}</p>
 				</div>
 				<div class="text-5xl opacity-80">✓</div>
-			</div>
-		</div>
-
-		<div class="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-purple-100 text-sm font-medium">Total Asistentes</p>
-					<p class="text-3xl font-bold mt-2">
-						{allMeetings.reduce((sum, m) => sum + m.attendees, 0)}
-					</p>
-				</div>
-				<div class="text-5xl opacity-80">👥</div>
 			</div>
 		</div>
 
@@ -150,7 +254,7 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-blue-100 text-sm font-medium">Total Eventos</p>
-					<p class="text-3xl font-bold mt-2">{allMeetings.length}</p>
+					<p class="text-3xl font-bold mt-2">{reuniones.length}</p>
 				</div>
 				<div class="text-5xl opacity-80">📋</div>
 			</div>
@@ -165,20 +269,17 @@
 				<input
 					type="text"
 					bind:value={searchTerm}
-					placeholder="Buscar por título o ubicación..."
+					placeholder="Buscar por título o tema..."
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				/>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 mb-2">Filtrar por Tipo</label>
+				<label class="block text-sm font-semibold text-gray-700 mb-2">Filtrar por Tema</label>
 				<select
 					bind:value={filterType}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				>
 					<option>Todos</option>
-					<option>General</option>
-					<option>Individual</option>
-					<option>Evento</option>
 				</select>
 			</div>
 			<div>
@@ -197,181 +298,207 @@
 
 	<!-- Meetings Table -->
 	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-		<div class="overflow-x-auto">
-			<table class="w-full">
-				<thead class="bg-gray-50">
-					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>ID</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Título</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Fecha y Hora</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Ubicación</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Tipo</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Asistentes</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Estado</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Acciones</th
-						>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-gray-200">
-					{#each filteredMeetings as meeting}
-						<tr class="hover:bg-gray-50 transition-colors">
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900"
-								>#{meeting.id}</td
+		{#if loading}
+			<div class="flex items-center justify-center py-20">
+				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+			</div>
+		{:else if filteredReuniones.length === 0}
+			<div class="text-center py-20">
+				<div class="text-6xl mb-4">📅</div>
+				<p class="text-gray-500 text-lg">No se encontraron reuniones</p>
+			</div>
+		{:else}
+			<div class="overflow-x-auto">
+				<table class="w-full">
+					<thead class="bg-gray-50">
+						<tr>
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
 							>
-							<td class="px-6 py-4">
-								<div class="text-sm font-semibold text-gray-900">{meeting.title}</div>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm text-gray-900">{meeting.date}</div>
-								<div class="text-xs text-gray-500">{meeting.time}</div>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{meeting.location}</td>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<span
-									class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getTypeStyle(
-										meeting.type
-									)}"
-								>
-									{meeting.type}
-								</span>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-								{meeting.attendees}/{meeting.capacity}
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<span
-									class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
-										meeting.status
-									)}"
-								>
-									{meeting.status}
-								</span>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm">
-								<div class="flex items-center gap-2">
-									<button
-										on:click={() => handleEdit(meeting)}
-										class="text-blue-600 hover:text-blue-900 font-medium"
-										title="Editar"
-									>
-										✏️
-									</button>
-									<button
-										on:click={() => handleDelete(meeting.id)}
-										class="text-red-600 hover:text-red-900 font-medium"
-										title="Eliminar"
-									>
-										🗑️
-									</button>
-									<button class="text-green-600 hover:text-green-900 font-medium" title="Ver">
-										👁️
-									</button>
-								</div>
-							</td>
+								Título
+							</th>
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+							>
+								Tema
+							</th>
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+							>
+								Fecha y Hora
+							</th>
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+							>
+								Estado
+							</th>
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+							>
+								Acciones
+							</th>
 						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
+					</thead>
+					<tbody class="divide-y divide-gray-200">
+						{#each filteredReuniones as reunion}
+							<tr class="hover:bg-gray-50 transition-colors">
+								<td class="px-6 py-4">
+									<div class="text-sm font-semibold text-gray-900">{reunion.nombre_reunion}</div>
+									<div class="text-xs text-gray-500">ID: {reunion._id.slice(-8)}</div>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap">
+									<span
+										class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border bg-indigo-100 text-indigo-700 border-indigo-200"
+									>
+										{reunion.tema}
+									</span>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap">
+									<div class="text-sm text-gray-900">
+										{new Date(reunion.fecha).toLocaleDateString('es-ES')}
+									</div>
+									<div class="text-xs text-gray-500">
+										{reunion.hora_inicio} - {reunion.hora_conclusion}
+									</div>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap">
+									<span
+										class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
+											getStatusForReunion(reunion)
+										)}"
+									>
+										{getStatusForReunion(reunion)}
+									</span>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm">
+									<div class="flex items-center gap-2">
+										<button
+											onclick={() => openEditModal(reunion)}
+											class="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition-colors font-medium"
+											title="Editar"
+										>
+											✏️ Editar
+										</button>
+										<button
+											onclick={() => confirmDelete(reunion)}
+											class="bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors font-medium"
+											title="Eliminar"
+										>
+											🗑️ Eliminar
+										</button>
+									</div>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
 	</div>
 </div>
 
+<!-- Create/Edit Modal -->
 {#if showModal}
-	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-		<div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8">
+	<div
+		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fade-in"
+		role="button"
+		tabindex="0"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closeModal();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeModal();
+		}}
+	>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div
+			class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up"
+			role="document"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+		>
 			<h2 class="text-2xl font-bold text-gray-900 mb-6">
-				{editingMeeting ? 'Editar Evento' : 'Programar Nuevo Evento'}
+				{modalMode === 'create' ? '➕ Programar Nuevo Evento' : '✏️ Editar Evento'}
 			</h2>
-			<form class="space-y-4">
+			<form
+				onsubmit={(e) => {
+					e.preventDefault();
+					handleSubmit();
+				}}
+				class="space-y-4"
+			>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="col-span-2">
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Título</label>
+						<label for="nombre_reunion" class="block text-sm font-semibold text-gray-700 mb-2">
+							Título de la Reunión
+						</label>
 						<input
 							type="text"
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-							value={editingMeeting?.title || ''}
+							id="nombre_reunion"
+							bind:value={formData.nombre_reunion}
+							required
+							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+						/>
+					</div>
+					<div class="col-span-2">
+						<label for="tema" class="block text-sm font-semibold text-gray-700 mb-2">Tema</label>
+						<input
+							type="text"
+							id="tema"
+							bind:value={formData.tema}
+							required
+							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Fecha</label>
+						<label for="fecha" class="block text-sm font-semibold text-gray-700 mb-2">Fecha</label>
 						<input
 							type="date"
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-							value={editingMeeting?.date || ''}
+							id="fecha"
+							bind:value={formData.fecha}
+							required
+							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Hora</label>
+						<label for="hora_inicio" class="block text-sm font-semibold text-gray-700 mb-2">
+							Hora de Inicio
+						</label>
 						<input
 							type="time"
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-							value={editingMeeting?.time || ''}
+							id="hora_inicio"
+							bind:value={formData.hora_inicio}
+							required
+							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 						/>
 					</div>
-					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Ubicación</label>
+					<div class="col-span-2">
+						<label for="hora_conclusion" class="block text-sm font-semibold text-gray-700 mb-2">
+							Hora de Conclusión
+						</label>
 						<input
-							type="text"
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-							value={editingMeeting?.location || ''}
+							type="time"
+							id="hora_conclusion"
+							bind:value={formData.hora_conclusion}
+							required
+							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 						/>
-					</div>
-					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Tipo</label>
-						<select
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-						>
-							<option>General</option>
-							<option>Individual</option>
-							<option>Evento</option>
-						</select>
-					</div>
-					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Capacidad</label>
-						<input
-							type="number"
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-							value={editingMeeting?.capacity || ''}
-						/>
-					</div>
-					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Estado</label>
-						<select
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-						>
-							<option>Programada</option>
-							<option>Completada</option>
-						</select>
 					</div>
 				</div>
 				<div class="flex justify-end gap-4 mt-6">
 					<button
 						type="button"
-						on:click={() => (showModal = false)}
+						onclick={closeModal}
 						class="px-6 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold"
 					>
 						Cancelar
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg"
+						disabled={loading}
+						class="px-6 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50"
 					>
-						{editingMeeting ? 'Actualizar' : 'Guardar'}
+						{loading ? 'Guardando...' : modalMode === 'create' ? 'Guardar' : 'Actualizar'}
 					</button>
 				</div>
 			</form>
@@ -379,18 +506,97 @@
 	</div>
 {/if}
 
+<!-- Delete Confirmation Modal -->
+{#if showDeleteConfirm && reunionToDelete}
+	<div
+		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in"
+		role="button"
+		tabindex="0"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) cancelDelete();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') cancelDelete();
+		}}
+	>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div
+			class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
+			role="document"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+		>
+			<div class="text-center">
+				<div class="text-6xl mb-4">⚠️</div>
+				<h2 class="text-2xl font-bold text-gray-900 mb-4">¿Eliminar Reunión?</h2>
+				<p class="text-gray-600 mb-6">
+					¿Estás seguro de que deseas eliminar <strong>{reunionToDelete.nombre_reunion}</strong>?
+					Esta acción no se puede deshacer.
+				</p>
+
+				<div class="flex gap-3">
+					<button
+						onclick={cancelDelete}
+						class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+					>
+						Cancelar
+					</button>
+					<button
+						onclick={handleDelete}
+						disabled={loading}
+						class="flex-1 px-4 py-2 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg hover:from-red-700 hover:to-red-800 transition-all font-semibold disabled:opacity-50"
+					>
+						{loading ? 'Eliminando...' : 'Eliminar'}
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <style>
 	.animate-fade-in {
-		animation: fadeIn 0.5s ease-out forwards;
+		animation: fadeIn 0.3s ease-out forwards;
 	}
+
+	.animate-slide-up {
+		animation: slideUp 0.3s ease-out forwards;
+	}
+
+	.animate-shake {
+		animation: shake 0.5s ease-in-out;
+	}
+
 	@keyframes fadeIn {
 		from {
 			opacity: 0;
-			transform: translateY(10px);
+		}
+		to {
+			opacity: 1;
+		}
+	}
+
+	@keyframes slideUp {
+		from {
+			opacity: 0;
+			transform: translateY(20px);
 		}
 		to {
 			opacity: 1;
 			transform: translateY(0);
+		}
+	}
+
+	@keyframes shake {
+		0%,
+		100% {
+			transform: translateX(0);
+		}
+		25% {
+			transform: translateX(-10px);
+		}
+		75% {
+			transform: translateX(10px);
 		}
 	}
 </style>

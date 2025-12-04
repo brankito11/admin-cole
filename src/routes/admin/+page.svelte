@@ -27,6 +27,13 @@
 			icon: '📋',
 			href: '/admin/licencias',
 			color: 'from-orange-500 to-orange-700'
+		},
+		{
+			title: 'Gestión de Usuarios',
+			description: 'Administrar usuarios y roles del sistema',
+			icon: '👥',
+			href: '/admin/users',
+			color: 'from-pink-500 to-rose-600'
 		}
 	];
 </script>

@@ -4,8 +4,9 @@ import type {
 	RegisterCredentials,
 	RegisterResponse,
 	User,
-	GetUsersResponse,
-	UserUpdateData
+	CreateAdminCredentials,
+	ChangePasswordData,
+	UpdateProfileRequest
 } from '$lib/interfaces';
 
 const API_BASE_URL = 'https://admin-cole-2.onrender.com/api';
@@ -115,68 +116,102 @@ class AuthService {
 		}
 	}
 
-	// Obtener todos los usuarios (requiere token)
-	async getAllUsers(token: string, skip: number = 0, limit: number = 100): Promise<GetUsersResponse> {
-		const response = await fetch(`${API_BASE_URL}/auth/?skip=${skip}&limit=${limit}`, {
-			headers: {
-				'Accept': 'application/json',
-				'Authorization': `Bearer ${token}`
+	// Actualizar perfil propio (requiere token de administrador)
+	async updateProfile(token: string, data: UpdateProfileRequest): Promise<User> {
+		try {
+			console.log('✏️ Update Profile request:', data);
+
+			const response = await fetch(`${API_BASE_URL}/admin/update-profile`, {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json',
+					'Authorization': `Bearer ${token}`
+				},
+				body: JSON.stringify(data)
+			});
+
+			console.log('📡 Update Profile response:', response.status);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ Update Profile error:', errorText);
+				throw new Error(`Error ${response.status}: ${errorText || 'Error al actualizar perfil'}`);
 			}
-		});
 
-		if (!response.ok) {
-			throw new Error('Error al obtener usuarios');
+			const result = await response.json();
+			console.log('✅ Perfil actualizado exitosamente');
+			return result;
+		} catch (error) {
+			console.error('💥 Update Profile exception:', error);
+			throw error;
 		}
-
-		return response.json();
 	}
 
-	// Obtener usuario por ID (requiere token)
-	async getUserById(token: string, userId: string): Promise<User> {
-		const response = await fetch(`${API_BASE_URL}/auth/${userId}`, {
-			headers: {
-				'Accept': 'application/json',
-				'Authorization': `Bearer ${token}`
+	// 🆕 Crear admin (requiere token de administrador)
+	async createAdmin(token: string, credentials: CreateAdminCredentials): Promise<User> {
+		try {
+			console.log('👨‍💼 Create Admin request:', {
+				url: `${API_BASE_URL}/admin/create-admin`,
+				username: credentials.username
+			});
+
+			const response = await fetch(`${API_BASE_URL}/admin/create-admin`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json',
+					'Authorization': `Bearer ${token}`
+				},
+				body: JSON.stringify(credentials)
+			});
+
+			console.log('📡 Create Admin response:', response.status, response.statusText);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ Create Admin error:', errorText);
+				throw new Error(`Error ${response.status}: ${errorText || 'Error al crear administrador'}`);
 			}
-		});
 
-		if (!response.ok) {
-			throw new Error('Error al obtener usuario');
+			const data = await response.json();
+			console.log('✅ Administrador creado exitosamente');
+			return data;
+		} catch (error) {
+			console.error('💥 Create Admin exception:', error);
+			throw error;
 		}
-
-		return response.json();
 	}
 
-	// Actualizar usuario (requiere token)
-	async updateUser(token: string, userId: string, data: UserUpdateData): Promise<User> {
-		const response = await fetch(`${API_BASE_URL}/auth/${userId}`, {
-			method: 'PUT',
-			headers: {
-				'Content-Type': 'application/json',
-				'Accept': 'application/json',
-				'Authorization': `Bearer ${token}`
-			},
-			body: JSON.stringify(data)
-		});
+	// 🆕 Cambiar contraseña (requiere token)
+	async changePassword(token: string, passwordData: ChangePasswordData): Promise<string> {
+		try {
+			console.log('🔑 Change Password request');
 
-		if (!response.ok) {
-			throw new Error('Error al actualizar usuario');
-		}
+			const response = await fetch(`${API_BASE_URL}/admin/change-password`, {
+				method: 'PUT',
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json',
+					'Authorization': `Bearer ${token}`
+				},
+				body: JSON.stringify(passwordData)
+			});
 
-		return response.json();
-	}
+			console.log('📡 Change Password response:', response.status, response.statusText);
 
-	// Eliminar usuario (requiere token)
-	async deleteUser(token: string, userId: string): Promise<void> {
-		const response = await fetch(`${API_BASE_URL}/auth/${userId}`, {
-			method: 'DELETE',
-			headers: {
-				'Authorization': `Bearer ${token}`
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ Change Password error:', errorText);
+				throw new Error(`Error ${response.status}: ${errorText || 'Error al cambiar contraseña'}`);
 			}
-		});
 
-		if (!response.ok) {
-			throw new Error('Error al eliminar usuario');
+			const data = await response.json();
+			console.log('✅ Contraseña cambiada exitosamente');
+			return data;
+		} catch (error) {
+			console.error('💥 Change Password exception:', error);
+			throw error;
 		}
 	}
 }
