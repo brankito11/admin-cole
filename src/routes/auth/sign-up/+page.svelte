@@ -5,7 +5,8 @@
 
 	let email = '';
 	let username = '';
-	let full_name = '';
+	let nombre = '';
+	let apellido = '';
 	let password = '';
 	let error = '';
 	let loading = false;
@@ -18,7 +19,8 @@
 			const result = await auth.register({
 				email,
 				username,
-				full_name,
+				nombre,
+				apellido,
 				password
 			});
 
@@ -69,16 +71,27 @@
 
 			<form on:submit|preventDefault={handleRegister} class="space-y-4">
 				<div>
-					<label for="full_name" class="block text-sm font-medium text-gray-700 mb-1"
-						>Nombre Completo</label
-					>
+					<label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
 					<input
-						id="full_name"
+						id="nombre"
 						type="text"
-						bind:value={full_name}
+						bind:value={nombre}
 						required
 						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
-						placeholder="Juan Pérez"
+						placeholder="Juan"
+					/>
+				</div>
+
+				<div>
+					<label for="apellido" class="block text-sm font-medium text-gray-700 mb-1">Apellido</label
+					>
+					<input
+						id="apellido"
+						type="text"
+						bind:value={apellido}
+						required
+						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+						placeholder="Pérez"
 					/>
 				</div>
 

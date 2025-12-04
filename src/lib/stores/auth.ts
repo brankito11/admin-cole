@@ -1,14 +1,9 @@
 import { writable } from 'svelte/store';
 import { goto } from '$app/navigation';
 import { authService } from '$lib/services/auth.service';
-import type { LoginCredentials, RegisterCredentials } from '$lib/interfaces';
+import type { LoginCredentials, RegisterCredentials, User } from '$lib/interfaces';
 import { browser } from '$app/environment';
 import { AUTH_TOKEN_KEY } from '$lib/constants';
-
-export interface User {
-    email: string;
-    // Add other fields if available
-}
 
 function createAuthStore() {
     const { subscribe, set, update } = writable<User | null>(null);
@@ -22,8 +17,17 @@ function createAuthStore() {
                     if (browser) {
                         localStorage.setItem(AUTH_TOKEN_KEY, response.access_token);
                     }
-                    // For now, just setting the email from credentials as we don't get user info in login response
-                    set({ email: credentials.email });
+                    // Store complete user information from login response
+                    set({
+                        email: response.email,
+                        username: response.username,
+                        nombre: response.nombre,
+                        apellido: response.apellido,
+                        role: response.role,
+                        _id: response._id,
+                        is_active: response.is_active,
+                        is_superuser: response.is_superuser
+                    });
 
                     // Redirect to dashboard/app
                     goto('/app');

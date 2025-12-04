@@ -1,24 +1,35 @@
 export interface LoginCredentials {
-	email: string;
+	username: string;
 	password: string;
 }
 
 export interface LoginResponse {
 	access_token: string;
 	token_type: string;
+	email: string;
+	username: string;
+	nombre: string;
+	apellido: string;
+	role: string;
+	_id: string;
+	is_active: boolean;
+	is_superuser: boolean;
 }
 
 export interface RegisterCredentials {
 	email: string;
 	username: string;
-	full_name: string;
+	nombre: string;
+	apellido: string;
 	password: string;
 }
 
 export interface User {
 	email: string;
 	username: string;
-	full_name: string;
+	nombre: string;
+	apellido: string;
+	role: string;
 	_id: string;
 	is_active: boolean;
 	is_superuser: boolean;
@@ -27,7 +38,8 @@ export interface User {
 export interface UserUpdateData {
 	email?: string;
 	username?: string;
-	full_name?: string;
+	nombre?: string;
+	apellido?: string;
 	password?: string;
 }
 

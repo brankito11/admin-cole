@@ -2,7 +2,7 @@
 	import { auth } from '$lib/stores/auth';
 	import { fade, fly } from 'svelte/transition';
 
-	let email = '';
+	let username = '';
 	let password = '';
 	let error = '';
 	let loading = false;
@@ -12,7 +12,7 @@
 		error = '';
 
 		try {
-			const success = await auth.login({ email, password });
+			const success = await auth.login({ username, password });
 			if (!success) {
 				error = 'Credenciales inválidas. Intente nuevamente.';
 			}
@@ -57,16 +57,16 @@
 
 			<form on:submit|preventDefault={handleLogin} class="space-y-6">
 				<div>
-					<label for="email" class="block text-sm font-medium text-gray-700 mb-1"
-						>Correo Electrónico</label
+					<label for="username" class="block text-sm font-medium text-gray-700 mb-1"
+						>Nombre de Usuario</label
 					>
 					<input
-						id="email"
-						type="email"
-						bind:value={email}
+						id="username"
+						type="text"
+						bind:value={username}
 						required
 						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
-						placeholder="ejemplo@escuela.edu"
+						placeholder="usuario123"
 					/>
 				</div>
 
