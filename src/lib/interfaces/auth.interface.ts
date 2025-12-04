@@ -6,14 +6,7 @@ export interface LoginCredentials {
 export interface LoginResponse {
 	access_token: string;
 	token_type: string;
-	email: string;
-	username: string;
-	nombre: string;
-	apellido: string;
-	role: string;
-	_id: string;
-	is_active: boolean;
-	is_superuser: boolean;
+	user: User;
 }
 
 export interface RegisterCredentials {

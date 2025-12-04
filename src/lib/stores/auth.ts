@@ -18,15 +18,16 @@ function createAuthStore() {
                         localStorage.setItem(AUTH_TOKEN_KEY, response.access_token);
                     }
                     // Store complete user information from login response
+                    // El usuario viene dentro de response.user según el OpenAPI spec
                     set({
-                        email: response.email,
-                        username: response.username,
-                        nombre: response.nombre,
-                        apellido: response.apellido,
-                        role: response.role,
-                        _id: response._id,
-                        is_active: response.is_active,
-                        is_superuser: response.is_superuser
+                        email: response.user.email,
+                        username: response.user.username,
+                        nombre: response.user.nombre,
+                        apellido: response.user.apellido,
+                        role: response.user.role,
+                        _id: response.user._id,
+                        is_active: response.user.is_active,
+                        is_superuser: response.user.is_superuser
                     });
 
                     // Redirect to dashboard/app

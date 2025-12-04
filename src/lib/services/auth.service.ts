@@ -1,4 +1,3 @@
-import { apiCole } from '$lib/config/apiCole.config';
 import type {
 	LoginCredentials,
 	LoginResponse,
@@ -9,25 +8,24 @@ import type {
 	UserUpdateData
 } from '$lib/interfaces';
 
+const API_BASE_URL = 'https://admin-cole-2.onrender.com/api';
+
 class AuthService {
-	// Método para login usando OAuth2 Password Grant
+	// Método para login usando OAuth2 Password Grant (form-urlencoded)
 	async login(credentials: LoginCredentials): Promise<LoginResponse> {
 		try {
-			// Crear FormData para enviar como application/x-www-form-urlencoded
 			const formData = new URLSearchParams();
 			formData.append('grant_type', 'password');
 			formData.append('username', credentials.username);
 			formData.append('password', credentials.password);
-			formData.append('scope', ''); // OAuth2 puede requerir scope, aunque sea vacío
+			formData.append('scope', '');
 
-			console.log('🔐 Intentando login con:', {
-				url: 'https://admin-cole-2.onrender.com/api/auth/login',
-				username: credentials.username,
-				formData: formData.toString()
+			console.log('🔐 Login request:', {
+				url: `${API_BASE_URL}/auth/login`,
+				username: credentials.username
 			});
 
-			// Hacer la petición con headers personalizados
-			const response = await fetch('https://admin-cole-2.onrender.com/api/auth/login', {
+			const response = await fetch(`${API_BASE_URL}/auth/login`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
@@ -36,60 +34,150 @@ class AuthService {
 				body: formData.toString()
 			});
 
-			console.log('📡 Respuesta del servidor:', {
-				status: response.status,
-				statusText: response.statusText,
-				ok: response.ok
-			});
+			console.log('📡 Login response:', response.status, response.statusText);
 
 			if (!response.ok) {
 				const errorText = await response.text();
-				console.error('❌ Error del servidor:', errorText);
+				console.error('❌ Login error:', errorText);
 				throw new Error(`Error ${response.status}: ${errorText || 'Credenciales inválidas'}`);
 			}
 
 			const data = await response.json();
-			console.log('✅ Login exitoso:', data);
+			console.log('✅ Login exitoso');
 			return data;
 		} catch (error) {
-			console.error('💥 Error en login:', error);
+			console.error('💥 Login exception:', error);
 			throw error;
 		}
 	}
 
-	// Método para registro
+	// Método para registro (JSON)
 	async register(credentials: RegisterCredentials): Promise<RegisterResponse> {
-		const response = await apiCole.postPublic<RegisterResponse>('/auth/register', credentials);
-		return response;
+		try {
+			console.log('📝 Register request:', {
+				url: `${API_BASE_URL}/auth/register`,
+				data: { ...credentials, password: '***' }
+			});
+
+			const response = await fetch(`${API_BASE_URL}/auth/register`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json'
+				},
+				body: JSON.stringify(credentials)
+			});
+
+			console.log('📡 Register response:', response.status, response.statusText);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ Register error:', errorText);
+				throw new Error(`Error ${response.status}: ${errorText || 'Error al registrar'}`);
+			}
+
+			const data = await response.json();
+			console.log('✅ Registro exitoso');
+			return data;
+		} catch (error) {
+			console.error('💥 Register exception:', error);
+			throw error;
+		}
 	}
 
-	// Obtener usuario actual
-	async getMe(): Promise<User> {
-		const response = await apiCole.get<User>('/auth/me');
-		return response;
+	// Obtener usuario actual (requiere token)
+	async getMe(token: string): Promise<User> {
+		try {
+			console.log('👤 GetMe request');
+
+			const response = await fetch(`${API_BASE_URL}/auth/me`, {
+				method: 'GET',
+				headers: {
+					'Accept': 'application/json',
+					'Authorization': `Bearer ${token}`
+				}
+			});
+
+			console.log('📡 GetMe response:', response.status);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ GetMe error:', errorText);
+				throw new Error(`Error ${response.status}: ${errorText || 'No autorizado'}`);
+			}
+
+			const data = await response.json();
+			console.log('✅ Usuario obtenido');
+			return data;
+		} catch (error) {
+			console.error('💥 GetMe exception:', error);
+			throw error;
+		}
 	}
 
-	// Obtener todos los usuarios
-	async getAllUsers(skip: number = 0, limit: number = 100): Promise<GetUsersResponse> {
-		const response = await apiCole.get<GetUsersResponse>(`/auth/?skip=${skip}&limit=${limit}`);
-		return response;
+	// Obtener todos los usuarios (requiere token)
+	async getAllUsers(token: string, skip: number = 0, limit: number = 100): Promise<GetUsersResponse> {
+		const response = await fetch(`${API_BASE_URL}/auth/?skip=${skip}&limit=${limit}`, {
+			headers: {
+				'Accept': 'application/json',
+				'Authorization': `Bearer ${token}`
+			}
+		});
+
+		if (!response.ok) {
+			throw new Error('Error al obtener usuarios');
+		}
+
+		return response.json();
 	}
 
-	// Obtener usuario por ID
-	async getUserById(userId: string): Promise<User> {
-		const response = await apiCole.get<User>(`/auth/${userId}`);
-		return response;
+	// Obtener usuario por ID (requiere token)
+	async getUserById(token: string, userId: string): Promise<User> {
+		const response = await fetch(`${API_BASE_URL}/auth/${userId}`, {
+			headers: {
+				'Accept': 'application/json',
+				'Authorization': `Bearer ${token}`
+			}
+		});
+
+		if (!response.ok) {
+			throw new Error('Error al obtener usuario');
+		}
+
+		return response.json();
 	}
 
-	// Actualizar usuario
-	async updateUser(userId: string, data: UserUpdateData): Promise<User> {
-		const response = await apiCole.put<User>(`/auth/${userId}`, data);
-		return response;
+	// Actualizar usuario (requiere token)
+	async updateUser(token: string, userId: string, data: UserUpdateData): Promise<User> {
+		const response = await fetch(`${API_BASE_URL}/auth/${userId}`, {
+			method: 'PUT',
+			headers: {
+				'Content-Type': 'application/json',
+				'Accept': 'application/json',
+				'Authorization': `Bearer ${token}`
+			},
+			body: JSON.stringify(data)
+		});
+
+		if (!response.ok) {
+			throw new Error('Error al actualizar usuario');
+		}
+
+		return response.json();
 	}
 
-	// Eliminar usuario
-	async deleteUser(userId: string): Promise<void> {
-		await apiCole.delete(`/auth/${userId}`);
+	// Eliminar usuario (requiere token)
+	async deleteUser(token: string, userId: string): Promise<void> {
+		const response = await fetch(`${API_BASE_URL}/auth/${userId}`, {
+			method: 'DELETE',
+			headers: {
+				'Authorization': `Bearer ${token}`
+			}
+		});
+
+		if (!response.ok) {
+			throw new Error('Error al eliminar usuario');
+		}
 	}
 }
 
