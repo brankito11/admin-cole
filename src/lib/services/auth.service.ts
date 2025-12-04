@@ -12,27 +12,48 @@ import type {
 class AuthService {
 	// Método para login usando OAuth2 Password Grant
 	async login(credentials: LoginCredentials): Promise<LoginResponse> {
-		// Crear FormData para enviar como application/x-www-form-urlencoded
-		const formData = new URLSearchParams();
-		formData.append('grant_type', 'password');
-		formData.append('username', credentials.username);
-		formData.append('password', credentials.password);
+		try {
+			// Crear FormData para enviar como application/x-www-form-urlencoded
+			const formData = new URLSearchParams();
+			formData.append('grant_type', 'password');
+			formData.append('username', credentials.username);
+			formData.append('password', credentials.password);
 
-		// Hacer la petición con headers personalizados
-		const response = await fetch('https://admin-cole-2.onrender.com/api/auth/login', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				'Accept': 'application/json'
-			},
-			body: formData.toString()
-		});
+			console.log('🔐 Intentando login con:', {
+				url: 'https://admin-cole-2.onrender.com/api/auth/login',
+				username: credentials.username,
+				formData: formData.toString()
+			});
 
-		if (!response.ok) {
-			throw new Error('Credenciales inválidas');
+			// Hacer la petición con headers personalizados
+			const response = await fetch('https://admin-cole-2.onrender.com/api/auth/login', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Accept': 'application/json'
+				},
+				body: formData.toString()
+			});
+
+			console.log('📡 Respuesta del servidor:', {
+				status: response.status,
+				statusText: response.statusText,
+				ok: response.ok
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ Error del servidor:', errorText);
+				throw new Error(`Error ${response.status}: ${errorText || 'Credenciales inválidas'}`);
+			}
+
+			const data = await response.json();
+			console.log('✅ Login exitoso:', data);
+			return data;
+		} catch (error) {
+			console.error('💥 Error en login:', error);
+			throw error;
 		}
-
-		return response.json();
 	}
 
 	// Método para registro
