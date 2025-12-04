@@ -18,6 +18,7 @@ class AuthService {
 			formData.append('grant_type', 'password');
 			formData.append('username', credentials.username);
 			formData.append('password', credentials.password);
+			formData.append('scope', ''); // OAuth2 puede requerir scope, aunque sea vacío
 
 			console.log('🔐 Intentando login con:', {
 				url: 'https://admin-cole-2.onrender.com/api/auth/login',
