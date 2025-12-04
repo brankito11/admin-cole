@@ -10,10 +10,29 @@ import type {
 } from '$lib/interfaces';
 
 class AuthService {
-	// Método para login
+	// Método para login usando OAuth2 Password Grant
 	async login(credentials: LoginCredentials): Promise<LoginResponse> {
-		const response = await apiCole.postPublic<LoginResponse>('/auth/login', credentials);
-		return response;
+		// Crear FormData para enviar como application/x-www-form-urlencoded
+		const formData = new URLSearchParams();
+		formData.append('grant_type', 'password');
+		formData.append('username', credentials.username);
+		formData.append('password', credentials.password);
+
+		// Hacer la petición con headers personalizados
+		const response = await fetch('https://admin-cole-2.onrender.com/api/auth/login', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+				'Accept': 'application/json'
+			},
+			body: formData.toString()
+		});
+
+		if (!response.ok) {
+			throw new Error('Credenciales inválidas');
+		}
+
+		return response.json();
 	}
 
 	// Método para registro
