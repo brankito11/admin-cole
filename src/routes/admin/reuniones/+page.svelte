@@ -37,14 +37,31 @@
 		try {
 			const token = localStorage.getItem(AUTH_TOKEN_KEY);
 			if (!token) {
-				error = 'No se encontró el token de autenticación';
+				error = 'No se encontró el token de autenticación. Por favor, inicia sesión nuevamente.';
+				loading = false;
+				setTimeout(() => {
+					window.location.href = '/auth/sign-in';
+				}, 2000);
 				return;
 			}
 
 			const response = await reunionService.getAllReuniones(token);
-			reuniones = response;
+			reuniones = response || [];
 		} catch (err: any) {
-			error = err.message || 'Error al cargar reuniones';
+			console.error('Error loading reuniones:', err);
+
+			// Check if it's an authentication error (401)
+			if (err.message && (err.message.includes('401') || err.message.includes('credenciales'))) {
+				error = 'Sesión expirada. Redirigiendo al login...';
+				localStorage.removeItem(AUTH_TOKEN_KEY);
+				setTimeout(() => {
+					window.location.href = '/auth/sign-in';
+				}, 2000);
+			} else {
+				error =
+					err.message || 'Error al cargar reuniones. Verifica que el servidor esté funcionando.';
+			}
+			reuniones = [];
 		} finally {
 			loading = false;
 		}
@@ -100,11 +117,7 @@
 			if (modalMode === 'create') {
 				await reunionService.createReunion(token, dataToSend as ReunionCreate);
 			} else if (selectedReunion) {
-				await reunionService.updateReunion(
-					token,
-					selectedReunion._id,
-					dataToSend as ReunionUpdate
-				);
+				await reunionService.updateReunion(token, selectedReunion._id, dataToSend as ReunionUpdate);
 			}
 			closeModal();
 			await loadReuniones();

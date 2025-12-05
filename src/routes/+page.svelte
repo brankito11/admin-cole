@@ -31,79 +31,138 @@
 	];
 </script>
 
-<div
-	class="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex flex-col items-center justify-center"
->
-	<div class="container mx-auto px-4 py-12 text-center">
-		<!-- Header -->
-		<div class="mb-12 animate-fade-in">
-			<h1
-				class="text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 mb-6"
+<div class="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+	<!-- Navigation Header -->
+	<header class="bg-white/80 backdrop-blur-md border-b border-purple-100 sticky top-0 z-50">
+		<div class="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
+			<div class="flex items-center gap-3">
+				<div
+					class="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center"
+				>
+					<span class="text-white text-xl font-bold">🎓</span>
+				</div>
+				<span
+					class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent"
+					>Portal Escolar</span
+				>
+			</div>
+			<nav class="hidden md:flex gap-8">
+				<a
+					href="#inicio"
+					class="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
+					>INICIO</a
+				>
+				<a
+					href="#servicios"
+					class="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
+					>SERVICIOS</a
+				>
+			</nav>
+		</div>
+	</header>
+
+	<!-- Hero Section -->
+	<section id="inicio" class="relative py-20">
+		<div class="max-w-7xl mx-auto px-8 text-center">
+			<div class="animate-fade-in">
+				<h1
+					class="text-6xl font-extrabold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-6"
+				>
+					Bienvenido al Portal Escolar
+				</h1>
+				<p class="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed mb-8">
+					Sistema integral de gestión académica. Conectando padres, alumnos y administración en un
+					solo lugar.
+				</p>
+				<a
+					href="/auth/sign-in"
+					class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-lg font-bold rounded-xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300"
+				>
+					<span>🔐</span>
+					Ingresar al Sistema
+				</a>
+			</div>
+		</div>
+	</section>
+
+	<!-- Services Section -->
+	<section id="servicios" class="py-20 bg-white/50 backdrop-blur-sm">
+		<div class="max-w-7xl mx-auto px-8">
+			<h2
+				class="text-4xl font-bold text-center bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-12"
 			>
-				Portal Escolar
-			</h1>
-			<p class="text-2xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-				Bienvenido al sistema integral de gestión académica. Conectando padres, alumnos y
-				administración.
-			</p>
-		</div>
-
-		<!-- Main Action -->
-		<div class="animate-fade-in-up delay-200">
-			<a
-				href="/auth/sign-in"
-				class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xl font-bold rounded-2xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300"
-			>
-				<span>🔐</span>
-				Ingresar al Sistema
-			</a>
-		</div>
-
-		<!-- Features Grid (Visual only) -->
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto mt-20 opacity-80">
-			<div class="p-6 bg-white rounded-2xl shadow-md border border-gray-100">
-				<div class="text-4xl mb-4">📊</div>
-				<h3 class="text-lg font-bold text-gray-900">Boletines</h3>
-				<p class="text-gray-500">Consulta de calificaciones en tiempo real</p>
-			</div>
-			<div class="p-6 bg-white rounded-2xl shadow-md border border-gray-100">
-				<div class="text-4xl mb-4">💳</div>
-				<h3 class="text-lg font-bold text-gray-900">Pagos</h3>
-				<p class="text-gray-500">Gestión de mensualidades y facturas</p>
-			</div>
-			<div class="p-6 bg-white rounded-2xl shadow-md border border-gray-100">
-				<div class="text-4xl mb-4">📅</div>
-				<h3 class="text-lg font-bold text-gray-900">Agenda</h3>
-				<p class="text-gray-500">Eventos y reuniones escolares</p>
+				Nuestros Servicios
+			</h2>
+			<div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+				{#each sections as section}
+					<a
+						href={section.href}
+						class="group p-6 bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border border-gray-100"
+					>
+						<div class="text-5xl mb-4 group-hover:scale-110 transition-transform">
+							{section.icon}
+						</div>
+						<h3 class="text-lg font-bold text-gray-900 mb-2">{section.title}</h3>
+						<p class="text-sm text-gray-600">{section.description}</p>
+					</a>
+				{/each}
 			</div>
 		</div>
+	</section>
 
-		<!-- Footer Info -->
-		<div class="mt-24 text-gray-400 text-sm animate-fade-in">
-			<p>Sistema de Gestión Escolar © 2024</p>
+	<!-- About Section -->
+	<section class="py-20">
+		<div class="max-w-7xl mx-auto px-8">
+			<div class="grid md:grid-cols-2 gap-16 items-center">
+				<div>
+					<h2
+						class="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-6"
+					>
+						Sobre Nuestro Sistema
+					</h2>
+					<p class="text-gray-700 mb-4 leading-relaxed">
+						Plataforma moderna y eficiente diseñada para facilitar la comunicación entre la
+						institución educativa, los padres y los estudiantes.
+					</p>
+					<p class="text-gray-700 leading-relaxed">
+						Accede a toda la información académica, financiera y administrativa desde cualquier
+						dispositivo, en cualquier momento.
+					</p>
+				</div>
+				<div class="grid grid-cols-2 gap-4">
+					<div class="p-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl text-white">
+						<div class="text-3xl font-bold mb-2">📊</div>
+						<div class="text-sm font-semibold">Boletines en Tiempo Real</div>
+					</div>
+					<div class="p-6 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl text-white">
+						<div class="text-3xl font-bold mb-2">💳</div>
+						<div class="text-sm font-semibold">Pagos Seguros</div>
+					</div>
+					<div class="p-6 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl text-white">
+						<div class="text-3xl font-bold mb-2">📅</div>
+						<div class="text-sm font-semibold">Agenda Actualizada</div>
+					</div>
+					<div class="p-6 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl text-white">
+						<div class="text-3xl font-bold mb-2">📋</div>
+						<div class="text-sm font-semibold">Gestión de Licencias</div>
+					</div>
+				</div>
+			</div>
 		</div>
-	</div>
+	</section>
+
+	<!-- Footer -->
+	<footer class="bg-gray-900 text-white py-6 text-center">
+		<p class="text-sm">Sistema de Gestión Escolar © 2024</p>
+	</footer>
 </div>
 
 <style>
 	.animate-fade-in {
-		animation: fadeIn 0.6s ease-out forwards;
-	}
-
-	.animate-fade-in-up {
-		animation: fadeInUp 0.6s ease-out forwards;
+		animation: fadeIn 0.8s ease-out forwards;
 	}
 
 	@keyframes fadeIn {
-		from {
-			opacity: 0;
-		}
-		to {
-			opacity: 1;
-		}
-	}
-
-	@keyframes fadeInUp {
 		from {
 			opacity: 0;
 			transform: translateY(20px);

@@ -30,8 +30,12 @@ function createAuthStore() {
                         is_superuser: response.user.is_superuser
                     });
 
-                    // Redirect to dashboard/app
-                    goto('/app');
+                    // Redirect based on user role
+                    if (response.user.role === 'admin' || response.user.is_superuser) {
+                        goto('/admin');
+                    } else {
+                        goto('/app');
+                    }
                     return true;
                 }
                 return false;
