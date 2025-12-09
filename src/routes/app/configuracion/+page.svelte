@@ -7,6 +7,10 @@
 	// Tabs
 	let activeTab: 'hijos' | 'preferencias' = 'hijos';
 
+	// State
+	let loading = false;
+	let hijos: Hijo[] = [];
+
 	// Preferencias
 	let isDarkMode = false;
 	function toggleDarkMode() {
@@ -131,7 +135,9 @@
 							</div>
 						</div>
 					{/each}
-			/div>
+				</div>
+			{/if}
+		</div>
 	{:else if activeTab === 'preferencias'}
 		<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden" transition:fade>
 			<div class="p-6">
