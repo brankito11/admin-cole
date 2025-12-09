@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { auth } from '$lib/stores/auth';
-	import { fade, fly } from 'svelte/transition';
+	import { fly, fade } from 'svelte/transition';
 	import { goto } from '$app/navigation';
 
 	let email = '';
@@ -25,7 +25,6 @@
 			});
 
 			if (result.success) {
-				// Redirect to login on success
 				goto('/auth/sign-in');
 			} else {
 				error = result.error || 'Error al registrarse. Por favor verifique sus datos.';

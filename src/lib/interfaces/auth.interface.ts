@@ -1,4 +1,5 @@
 import type { User } from './user.interface';
+import type { HijoCreateData } from './hijo.interface';
 
 export interface LoginCredentials {
 	username: string;
@@ -17,6 +18,7 @@ export interface RegisterCredentials {
 	nombre: string;
 	apellido: string;
 	password: string;
+	hijos?: HijoCreateData[];
 }
 
 export interface UserUpdateData {
@@ -42,4 +44,3 @@ export interface UpdateProfileRequest {
 }
 
 export type RegisterResponse = User;
-

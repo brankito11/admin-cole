@@ -11,8 +11,8 @@ interface RequestOptions {
 
 class ApiCole {
 	// Método para construir headers con autenticación
-	private buildHeaders(options: RequestOptions = {}): HeadersInit {
-		const headers: HeadersInit = { ...defaultHeaders };
+	private buildHeaders(options: RequestOptions = {}): Record<string, string> {
+		const headers: Record<string, string> = { ...(defaultHeaders as Record<string, string>) };
 
 		// Agregar headers customizados si existen
 		if (options.customHeaders) {
