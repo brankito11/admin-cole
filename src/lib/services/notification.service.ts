@@ -26,8 +26,9 @@ class NotificationService {
 
 			return await apiCole.get<NotificationResponse>(endpoint);
 		} catch (error) {
-			console.error('Error al obtener notificaciones:', error);
-			throw error;
+			// Silently fail if notifications endpoint doesn't exist
+			// Return empty array instead of throwing error
+			return [];
 		}
 	}
 
@@ -54,7 +55,7 @@ class NotificationService {
 			const notifications = await this.getUnreadNotifications();
 			return notifications.length;
 		} catch (error) {
-			console.error('Error al obtener contador de no leídas:', error);
+			// Silently return 0 if notifications are not available
 			return 0;
 		}
 	}

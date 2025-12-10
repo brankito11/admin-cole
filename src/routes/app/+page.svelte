@@ -5,72 +5,72 @@
 			description: 'Consulta las calificaciones y rendimiento académico',
 			icon: '📚',
 			href: '/app/boletin-notas',
-			color: 'from-blue-500 to-blue-700'
+			color: 'from-blue-400 to-indigo-500'
 		},
 		{
 			title: 'Pagos y Facturación',
 			description: 'Gestiona tus pagos escolares y consulta facturas',
 			icon: '💳',
 			href: '/app/pagos',
-			color: 'from-green-500 to-emerald-600'
+			color: 'from-teal-400 to-cyan-500'
 		},
 		{
 			title: 'Reuniones y Eventos',
 			description: 'Mantente al día con las actividades escolares',
 			icon: '📅',
 			href: '/app/reuniones',
-			color: 'from-purple-500 to-purple-700'
+			color: 'from-cyan-400 to-blue-500'
 		},
 		{
 			title: 'Licencias',
 			description: 'Gestión de licencias y permisos',
 			icon: '📋',
 			href: '/app/licencias',
-			color: 'from-orange-500 to-orange-700'
+			color: 'from-sky-400 to-cyan-500'
 		}
 	];
 </script>
 
 <div class="animate-fade-in space-y-8">
 	<div class="text-center md:text-left">
-		<h1 class="text-3xl font-bold text-gray-900">Hola, Padre de Familia</h1>
-		<p class="text-gray-600 mt-2">Bienvenido al panel de control de tu estudiante.</p>
+		<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Hola, Padre de Familia</h1>
+		<p class="text-gray-600 dark:text-gray-400 mt-2">Bienvenido al panel de control de tu estudiante.</p>
 	</div>
 
-	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 		{#each sections as section}
 			<a
 				href={section.href}
-				class="group bg-white rounded-2xl shadow-lg border border-gray-200 p-8 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 animate-fade-in-up"
+				class="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 animate-fade-in-up"
 			>
 				<div class="flex flex-col items-center text-center">
 					<!-- Icon -->
 					<div
-						class="w-20 h-20 rounded-full bg-gradient-to-r {section.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-lg"
+						class="w-16 h-16 rounded-full bg-gradient-to-r {section.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg"
 					>
-						<span class="text-4xl">{section.icon}</span>
+						<span class="text-3xl">{section.icon}</span>
 					</div>
 
 					<!-- Title -->
 					<h2
-						class="text-2xl font-bold text-gray-900 mb-3 group-hover:text-indigo-600 transition-colors"
+						class="text-lg font-bold text-gray-900 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors"
 					>
 						{section.title}
 					</h2>
 
 					<!-- Description -->
-					<p class="text-gray-600 mb-4">
+					<p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
 						{section.description}
 					</p>
 
 					<!-- Arrow -->
 					<div class="mt-auto">
 						<span
-							class="inline-flex items-center text-indigo-600 font-semibold group-hover:gap-3 gap-2 transition-all"
+							class="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-semibold text-sm group-hover:gap-2 gap-1 transition-all"
 						>
-							Ir a {section.title}
+							Ver más
 							<svg
-								class="w-5 h-5 group-hover:translate-x-1 transition-transform"
+								class="w-4 h-4 group-hover:translate-x-1 transition-transform"
 								fill="none"
 								stroke="currentColor"
 								viewBox="0 0 24 24"

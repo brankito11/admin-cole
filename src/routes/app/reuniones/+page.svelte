@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
+	import { goto } from '$app/navigation';
 	import { reunionService } from '$lib/services';
 	import { AUTH_TOKEN_KEY } from '$lib/constants';
 	import type { Reunion } from '$lib/interfaces';
@@ -10,10 +12,17 @@
 
 	onMount(async () => {
 		try {
+			// Get token from localStorage
+			if (!browser) {
+				error = 'No se puede acceder al almacenamiento';
+				loading = false;
+				return;
+			}
+
 			const token = localStorage.getItem(AUTH_TOKEN_KEY);
 			if (!token) {
-				error = 'No se encontró el token de autenticación';
-				loading = false;
+				// Redirect to login if no token found
+				goto('/auth/sign-in');
 				return;
 			}
 
@@ -52,8 +61,8 @@
 
 <div class="space-y-6 animate-fade-in">
 	<div>
-		<h1 class="text-3xl font-bold text-gray-900">Reuniones y Eventos</h1>
-		<p class="text-gray-600 mt-1">Mantente al día con las actividades escolares</p>
+		<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Reuniones y Eventos</h1>
+		<p class="text-gray-600 dark:text-gray-400 mt-1">Mantente al día con las actividades escolares</p>
 	</div>
 
 	{#if loading}
@@ -69,14 +78,14 @@
 			<span class="block sm:inline">{error}</span>
 		</div>
 	{:else if meetings.length === 0}
-		<div class="text-center py-12 bg-gray-50 rounded-xl border border-gray-200">
-			<p class="text-gray-500 text-lg">No hay reuniones programadas.</p>
+		<div class="text-center py-12 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600">
+			<p class="text-gray-500 dark:text-gray-400 text-lg">No hay reuniones programadas.</p>
 		</div>
 	{:else}
 		<div class="grid gap-6">
 			{#each meetings as meeting}
 				<div
-					class="bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col md:flex-row md:items-center gap-6 hover:shadow-lg transition-shadow duration-300"
+					class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 flex flex-col md:flex-row md:items-center gap-6 hover:shadow-lg transition-shadow duration-300"
 				>
 					<div
 						class="flex-shrink-0 w-16 h-16 bg-indigo-50 rounded-xl flex flex-col items-center justify-center text-indigo-600 border border-indigo-100"
@@ -89,14 +98,14 @@
 
 					<div class="flex-1">
 						<div class="flex items-center gap-3 mb-1">
-							<h3 class="text-xl font-bold text-gray-900">{meeting.title}</h3>
+							<h3 class="text-xl font-bold text-gray-900 dark:text-white">{meeting.title}</h3>
 							<span
 								class="px-2 py-0.5 text-xs font-bold rounded-full bg-indigo-100 text-indigo-700"
 							>
 								{meeting.type}
 							</span>
 						</div>
-						<div class="flex flex-wrap gap-4 text-sm text-gray-600">
+						<div class="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-300">
 							<span class="flex items-center gap-1">
 								<span>⏰</span>
 								{meeting.time}

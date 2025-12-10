@@ -158,8 +158,8 @@
 	<!-- Header -->
 	<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
 		<div>
-			<h1 class="text-3xl font-bold text-gray-900">Gestión de Padres</h1>
-			<p class="text-gray-600 mt-1">Administra los padres de familia del colegio</p>
+			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Padres</h1>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra los padres de familia del colegio</p>
 		</div>
 		<button
 			onclick={openCreateModal}
@@ -200,7 +200,7 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-purple-100 text-sm font-medium">Página Actual</p>
@@ -212,7 +212,7 @@
 	</div>
 
 	<!-- Search Bar -->
-	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 p-4">
+	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-4">
 		<div class="relative">
 			<input
 				type="text"
@@ -225,7 +225,7 @@
 	</div>
 
 	<!-- Table -->
-	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
 		{#if loading}
 			<div class="flex items-center justify-center py-20">
 				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -233,38 +233,38 @@
 		{:else if filteredPadres.length === 0}
 			<div class="text-center py-20">
 				<div class="text-6xl mb-4">👤</div>
-				<p class="text-gray-500 text-lg">No se encontraron padres</p>
+				<p class="text-gray-500 dark:text-gray-400 text-lg">No se encontraron padres</p>
 			</div>
 		{:else}
 			<div class="overflow-x-auto">
 				<table class="w-full">
-					<thead class="bg-gradient-to-r from-gray-50 to-gray-100">
+					<thead class="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600">
 						<tr>
 							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider"
+								class="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider"
 								>Nombre Completo</th
 							>
 							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider"
+								class="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider"
 								>Usuario</th
 							>
 							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider"
+								class="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider"
 								>Email</th
 							>
 							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider"
+								class="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider"
 								>Estado</th
 							>
 							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-600 uppercase tracking-wider"
+								class="px-6 py-4 text-left text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider"
 								>Acciones</th
 							>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200">
 						{#each filteredPadres as padre}
-							<tr class="hover:bg-blue-50 transition-colors">
+							<tr class="hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors">
 								<td class="px-6 py-4 whitespace-nowrap">
 									<div class="flex items-center">
 										<div
@@ -273,16 +273,16 @@
 											{padre.full_name.charAt(0).toUpperCase()}
 										</div>
 										<div>
-											<div class="text-sm font-semibold text-gray-900">{padre.full_name}</div>
-											<div class="text-xs text-gray-500">ID: {padre._id.slice(-8)}</div>
+											<div class="text-sm font-semibold text-gray-900 dark:text-white">{padre.full_name}</div>
+											<div class="text-xs text-gray-500 dark:text-gray-400">ID: {padre._id.slice(-8)}</div>
 										</div>
 									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm text-gray-900">@{padre.username}</div>
+									<div class="text-sm text-gray-900 dark:text-white">@{padre.username}</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm text-gray-600">{padre.email}</div>
+									<div class="text-sm text-gray-600 dark:text-gray-300">{padre.email}</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<span
@@ -318,8 +318,8 @@
 			</div>
 
 			<!-- Pagination -->
-			<div class="bg-gray-50 px-6 py-4 flex items-center justify-between border-t border-gray-200">
-				<div class="text-sm text-gray-600">
+			<div class="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-600">
+				<div class="text-sm text-gray-600 dark:text-gray-300">
 					Mostrando {currentPage * pageSize + 1} - {Math.min(
 						(currentPage + 1) * pageSize,
 						totalPadres

@@ -149,39 +149,39 @@
 <div class="space-y-6 animate-fade-in">
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
-			<h1 class="text-3xl font-bold text-gray-900">Mis Licencias</h1>
-			<p class="text-gray-600 mt-1">Consulta y solicita permisos para tus hijos</p>
+			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Mis Licencias</h1>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">Consulta y solicita permisos para tus hijos</p>
 		</div>
 		<button
 			on:click={openModal}
-			class="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+			class="px-6 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
 			Solicitar Licencia
 		</button>
 	</div>
 
-	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
 		<div class="overflow-x-auto">
 			<table class="w-full">
-				<thead class="bg-gray-50">
+				<thead class="bg-gray-50 dark:bg-gray-700">
 					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estudiante</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Tipo</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Fecha</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Duración</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Motivo</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estado</th
 						>
 					</tr>
@@ -199,29 +199,29 @@
 						<tr>
 							<td colspan="6" class="px-6 py-12 text-center">
 								<span class="text-4xl block mb-2">📋</span>
-								<p class="text-gray-500">No tienes licencias solicitadas</p>
+								<p class="text-gray-500 dark:text-gray-400">No tienes licencias solicitadas</p>
 							</td>
 						</tr>
 					{:else}
 						{#each licencias as licencia (licencia._id)}
-							<tr class="hover:bg-gray-50 transition-colors">
+							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
 								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm font-semibold text-gray-900">
+									<div class="text-sm font-semibold text-gray-900 dark:text-white">
 										{getHijoNombre(licencia.hijo_id)}
 									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm font-semibold text-gray-900">{licencia.tipo}</div>
-									<div class="text-xs text-gray-500">ID: #{licencia._id?.slice(-6)}</div>
+									<div class="text-sm font-semibold text-gray-900 dark:text-white">{licencia.tipo}</div>
+									<div class="text-xs text-gray-500 dark:text-gray-400">ID: #{licencia._id?.slice(-6)}</div>
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
 									{formatDate(licencia.fecha_inicio)}
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
 									{calculateDurationFromDates(licencia.fecha_inicio, licencia.fecha_fin)}
 								</td>
 								<td class="px-6 py-4">
-									<div class="text-sm text-gray-600 max-w-xs">{licencia.motivo}</div>
+									<div class="text-sm text-gray-600 dark:text-gray-300 max-w-xs">{licencia.motivo}</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<span
@@ -260,7 +260,7 @@
 			role="dialog"
 			tabindex="-1"
 		>
-			<div class="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
+			<div class="bg-gradient-to-r from-cyan-400 to-blue-500 p-6 text-white">
 				<h2 class="text-2xl font-bold">
 					{modalStep === 'select' ? 'Selecciona un Hijo' : 'Solicitar Licencia'}
 				</h2>
@@ -289,7 +289,7 @@
 									class="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-xl border-2 border-transparent hover:border-indigo-500 hover:shadow-lg transition-all duration-200 text-left group"
 								>
 									<div
-										class="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto group-hover:scale-110 transition-transform"
+										class="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto group-hover:scale-110 transition-transform"
 									>
 										{getInitials(hijo.nombre, hijo.apellido)}
 									</div>

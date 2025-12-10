@@ -129,8 +129,8 @@
 <div class="space-y-6 animate-fade-in">
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
-			<h1 class="text-3xl font-bold text-gray-900">Gestión de Pagos</h1>
-			<p class="text-gray-600 mt-1">Administra todos los pagos de los estudiantes</p>
+			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Pagos</h1>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra todos los pagos de los estudiantes</p>
 		</div>
 		<button
 			on:click={handleCreate}
@@ -149,7 +149,7 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-green-100 text-sm font-medium">Total Pagado</p>
-					<p class="text-3xl font-bold mt-2">${totalPaid.toFixed(2)}</p>
+					<p class="text-3xl font-bold mt-2">Bs {totalPaid.toFixed(2)}</p>
 				</div>
 				<div class="text-5xl opacity-80">✓</div>
 			</div>
@@ -161,7 +161,7 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-yellow-100 text-sm font-medium">Pendiente</p>
-					<p class="text-3xl font-bold mt-2">${totalPending.toFixed(2)}</p>
+					<p class="text-3xl font-bold mt-2">Bs {totalPending.toFixed(2)}</p>
 				</div>
 				<div class="text-5xl opacity-80">⏳</div>
 			</div>
@@ -171,7 +171,7 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-red-100 text-sm font-medium">Vencido</p>
-					<p class="text-3xl font-bold mt-2">${totalOverdue.toFixed(2)}</p>
+					<p class="text-3xl font-bold mt-2">Bs {totalOverdue.toFixed(2)}</p>
 				</div>
 				<div class="text-5xl opacity-80">⚠️</div>
 			</div>
@@ -189,10 +189,10 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 mb-2">Buscar</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
 				<input
 					type="text"
 					bind:value={searchTerm}
@@ -201,7 +201,7 @@
 				/>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 mb-2">Filtrar por Estado</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Estado</label>
 				<select
 					bind:value={filterStatus}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -216,52 +216,52 @@
 	</div>
 
 	<!-- Payments Table -->
-	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
 		<div class="overflow-x-auto">
 			<table class="w-full">
-				<thead class="bg-gray-50">
+				<thead class="bg-gray-50 dark:bg-gray-700">
 					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>ID</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estudiante</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Padre/Tutor</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Concepto</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Fecha</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Monto</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estado</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Acciones</th
 						>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200">
 					{#each filteredPayments as payment}
-						<tr class="hover:bg-gray-50 transition-colors">
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900"
+						<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+							<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
 								>#{payment.id}</td
 							>
 							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm font-semibold text-gray-900">{payment.student}</div>
-								<div class="text-xs text-gray-500">{payment.grade}</div>
+								<div class="text-sm font-semibold text-gray-900 dark:text-white">{payment.student}</div>
+								<div class="text-xs text-gray-500 dark:text-gray-400">{payment.grade}</div>
 							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{payment.parent}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.concept}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{payment.date}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900"
-								>${payment.amount.toFixed(2)}</td
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{payment.parent}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{payment.concept}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{payment.date}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white"
+								>Bs {payment.amount.toFixed(2)}</td
 							>
 							<td class="px-6 py-4 whitespace-nowrap">
 								<span

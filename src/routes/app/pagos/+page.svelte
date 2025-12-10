@@ -1,46 +1,24 @@
 <script lang="ts">
-	const payments = [
-		{
-			id: 1,
-			concept: 'Matrícula 2024',
-			amount: 150.0,
-			date: '2024-03-01',
-			status: 'Pagado',
-			student: 'Juan Pérez'
-		},
-		{
-			id: 2,
-			concept: 'Mensualidad Marzo',
-			amount: 80.0,
-			date: '2024-03-05',
-			status: 'Pagado',
-			student: 'Juan Pérez'
-		},
-		{
-			id: 3,
-			concept: 'Mensualidad Abril',
-			amount: 80.0,
-			date: '2024-04-05',
-			status: 'Pagado',
-			student: 'Juan Pérez'
-		},
-		{
-			id: 4,
-			concept: 'Mensualidad Mayo',
-			amount: 80.0,
-			date: '2024-05-05',
-			status: 'Pendiente',
-			student: 'Juan Pérez'
-		},
-		{
-			id: 5,
-			concept: 'Seguro Estudiantil',
-			amount: 25.0,
-			date: '2024-03-01',
-			status: 'Pagado',
-			student: 'Juan Pérez'
+	import { onMount } from 'svelte';
+	import { hijoService } from '$lib/services';
+	import type { Hijo } from '$lib/interfaces';
+
+	let hijos: Hijo[] = [];
+	let loading = true;
+
+	// Mock data - in real app would come from API
+	const payments: any[] = [];
+
+	onMount(async () => {
+		try {
+			loading = true;
+			hijos = await hijoService.getHijos();
+		} catch (error) {
+			console.error('Error loading hijos:', error);
+		} finally {
+			loading = false;
 		}
-	];
+	});
 
 	function getStatusStyle(status: string) {
 		if (status === 'Pagado') return 'bg-green-100 text-green-800 border-green-200';
@@ -58,98 +36,39 @@
 
 <div class="space-y-6 animate-fade-in">
 	<div>
-		<h1 class="text-3xl font-bold text-gray-900">Mis Pagos</h1>
-		<p class="text-gray-600 mt-1">Consulta el historial de pagos de tus hijos</p>
+		<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Mis Pagos</h1>
+		<p class="text-gray-600 dark:text-gray-400 mt-1">Consulta el historial de pagos de tus hijos</p>
 	</div>
 
-	<!-- Summary Cards -->
-	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-		<div
-			class="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg"
-		>
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-green-100 text-sm font-medium">Total Pagado</p>
-					<p class="text-3xl font-bold mt-2">${totalPaid.toFixed(2)}</p>
-				</div>
-				<div class="text-5xl opacity-80">✓</div>
-			</div>
+	{#if loading}
+		<div class="flex justify-center items-center py-12">
+			<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
 		</div>
-
-		<div
-			class="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg"
-		>
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-yellow-100 text-sm font-medium">Pendiente</p>
-					<p class="text-3xl font-bold mt-2">${totalPending.toFixed(2)}</p>
-				</div>
-				<div class="text-5xl opacity-80">⏳</div>
-			</div>
+	{:else if hijos.length === 0}
+		<!-- No children registered message -->
+		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+			<div class="text-6xl mb-4">👨‍👩‍👧‍👦</div>
+			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">No tienes hijos registrados</h3>
+			<p class="text-gray-600 dark:text-gray-400 mb-6">
+				Debes registrar al menos un hijo en la sección de Configuración para poder ver su historial de pagos.
+			</p>
+			<a
+				href="/app/configuracion"
+				class="inline-block px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+			>
+				Ir a Configuración
+			</a>
 		</div>
-
-		<div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-blue-100 text-sm font-medium">Total Pagos</p>
-					<p class="text-3xl font-bold mt-2">{payments.length}</p>
-				</div>
-				<div class="text-5xl opacity-80">📋</div>
-			</div>
+	{:else}
+		<!-- Message: No payments available yet -->
+		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+			<div class="text-6xl mb-4">💳</div>
+			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Historial de pagos no disponible</h3>
+			<p class="text-gray-600 dark:text-gray-400">
+				El historial de pagos de tus hijos estará disponible próximamente.
+			</p>
 		</div>
-	</div>
-
-	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-		<div class="overflow-x-auto">
-			<table class="w-full">
-				<thead class="bg-gray-50">
-					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Estudiante</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Concepto</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Fecha</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Monto</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Estado</th
-						>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-gray-200">
-					{#each payments as payment}
-						<tr class="hover:bg-gray-50 transition-colors">
-							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm font-semibold text-gray-900">{payment.student}</div>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm font-semibold text-gray-900">{payment.concept}</div>
-								<div class="text-xs text-gray-500">ID: #{payment.id}</div>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{payment.date}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900"
-								>${payment.amount.toFixed(2)}</td
-							>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<span
-									class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
-										payment.status
-									)}"
-								>
-									{payment.status}
-								</span>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	</div>
+	{/if}
 </div>
 
 <style>

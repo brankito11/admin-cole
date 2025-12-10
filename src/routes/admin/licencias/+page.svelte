@@ -131,12 +131,12 @@
 <div class="space-y-6 animate-fade-in">
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
-			<h1 class="text-3xl font-bold text-gray-900">Gestión de Licencias</h1>
-			<p class="text-gray-600 mt-1">Administra todas las solicitudes de permisos</p>
+			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Licencias</h1>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra todas las solicitudes de permisos</p>
 		</div>
 		<button
 			on:click={handleCreate}
-			class="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+			class="px-6 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
 			Nueva Licencia
@@ -185,7 +185,7 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-blue-100 text-sm font-medium">Total</p>
@@ -197,10 +197,10 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 mb-2">Buscar</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
 				<input
 					type="text"
 					bind:value={searchTerm}
@@ -209,7 +209,7 @@
 				/>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 mb-2">Filtrar por Estado</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Estado</label>
 				<select
 					bind:value={filterStatus}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -224,51 +224,51 @@
 	</div>
 
 	<!-- Licenses Table -->
-	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
 		<div class="overflow-x-auto">
 			<table class="w-full">
-				<thead class="bg-gray-50">
+				<thead class="bg-gray-50 dark:bg-gray-700">
 					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>ID</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estudiante</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Padre/Tutor</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Tipo</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Fecha</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Duración</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estado</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Acciones</th
 						>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200">
 					{#each filteredLicenses as license}
-						<tr class="hover:bg-gray-50 transition-colors">
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900"
+						<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+							<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
 								>#{license.id}</td
 							>
 							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm font-semibold text-gray-900">{license.student}</div>
-								<div class="text-xs text-gray-500">{license.grade}</div>
+								<div class="text-sm font-semibold text-gray-900 dark:text-white">{license.student}</div>
+								<div class="text-xs text-gray-500 dark:text-gray-400">{license.grade}</div>
 							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{license.parent}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{license.type}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{license.date}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{license.duration}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{license.parent}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{license.type}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{license.date}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{license.duration}</td>
 							<td class="px-6 py-4 whitespace-nowrap">
 								<span
 									class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
@@ -416,7 +416,7 @@
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg"
+						class="px-6 py-2 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg"
 					>
 						{editingLicense ? 'Actualizar' : 'Guardar'}
 					</button>

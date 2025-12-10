@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import NotificationBell from './NotificationBell.svelte';
 	import NotificationPanel from './NotificationPanel.svelte';
+	import { darkMode } from '$lib/stores/darkMode';
 
 	export let onToggleSidebar: () => void = () => {};
 
@@ -13,7 +14,10 @@
 		if (pathname.includes('/licencias')) return 'Licencias';
 		if (pathname.includes('/pagos')) return 'Pagos';
 		if (pathname.includes('/reuniones')) return 'Reuniones';
-		return 'Dashboard';
+		if (pathname.includes('/padres')) return 'Padres';
+		if (pathname.includes('/users')) return 'Cuentas';
+		if (pathname.includes('/estudiantes')) return 'Estudiantes';
+		return 'Inicio';
 	}
 
 	function togglePanel() {
@@ -47,9 +51,16 @@
 
 	<div class="flex items-center gap-4">
 		<NotificationBell bind:this={bellComponent} onClick={togglePanel} />
-		<div class="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-2"></div>
-		<button class="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
-			<span class="text-sm font-medium">Ayuda</span>
+		<button
+			on:click={() => darkMode.toggle()}
+			class="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+			title={$darkMode ? 'Modo claro' : 'Modo oscuro'}
+		>
+			{#if $darkMode}
+				<span class="text-xl">☀️</span>
+			{:else}
+				<span class="text-xl">🌙</span>
+			{/if}
 		</button>
 	</div>
 </header>

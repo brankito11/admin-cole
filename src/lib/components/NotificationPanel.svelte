@@ -156,7 +156,7 @@
 
 	<!-- Panel lateral -->
 	<div
-		class="fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white shadow-2xl z-50 flex flex-col"
+		class="fixed top-0 right-0 h-full w-full sm:w-[400px] bg-white dark:bg-gray-800 shadow-2xl z-50 flex flex-col"
 		transition:fly={{ x: 400, duration: 300 }}
 	>
 		<!-- Header -->
@@ -177,10 +177,10 @@
 				{#each getAvailableFilters() as filter}
 					<button
 						on:click={() => (selectedFilter = filter.value)}
-						class="px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all {selectedFilter ===
+						class="px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all {selectedFilter ===
 						filter.value
 							? 'bg-white text-purple-600'
-							: 'bg-white bg-opacity-20 hover:bg-opacity-30'}"
+							: 'bg-white bg-opacity-90 text-purple-700 hover:bg-opacity-100'}"
 					>
 						{filter.label}
 					</button>
@@ -195,9 +195,9 @@
 					<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
 				</div>
 			{:else if filteredNotifications.length === 0}
-				<div class="flex flex-col items-center justify-center h-full text-gray-400 p-8">
+				<div class="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 p-8">
 					<span class="text-6xl mb-4">🔔</span>
-					<p class="text-center text-gray-500">No hay notificaciones</p>
+					<p class="text-center text-gray-500 dark:text-gray-400">No hay notificaciones</p>
 				</div>
 			{:else}
 				<div class="divide-y divide-gray-100">

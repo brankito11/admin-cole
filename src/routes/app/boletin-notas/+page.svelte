@@ -1,30 +1,31 @@
 <script lang="ts">
-	const boletines = [
-		{
-			id: 1,
-			student: 'Juan Pérez',
-			period: '1er Trimestre 2024',
-			grade: 'Quinto Grado',
-			average: 8.5,
-			status: 'Aprobado'
-		},
-		{
-			id: 2,
-			student: 'Juan Pérez',
-			period: '2do Trimestre 2024',
-			grade: 'Quinto Grado',
-			average: 9.0,
-			status: 'Aprobado'
-		}
-	];
+	import { onMount } from 'svelte';
+	import { hijoService } from '$lib/services';
+	import type { Hijo } from '$lib/interfaces';
 
-	const subjects = [
-		{ name: 'Matemáticas', grade: 9.0 },
-		{ name: 'Lenguaje', grade: 8.5 },
-		{ name: 'Ciencias', grade: 9.5 },
-		{ name: 'Historia', grade: 8.0 },
-		{ name: 'Educación Física', grade: 9.0 }
-	];
+	let hijos: Hijo[] = [];
+	let selectedHijo: Hijo | null = null;
+	let loading = true;
+
+	// Mock data for demonstration - in real app this would come from API
+	const boletines: any[] = [];
+	const subjects: any[] = [];
+
+	onMount(async () => {
+		try {
+			loading = true;
+			hijos = await hijoService.getHijos();
+			
+			// Select first hijo by default if available
+			if (hijos.length > 0) {
+				selectedHijo = hijos[0];
+			}
+		} catch (error) {
+			console.error('Error loading hijos:', error);
+		} finally {
+			loading = false;
+		}
+	});
 
 	function getStatusStyle(status: string) {
 		if (status === 'Aprobado') return 'bg-green-100 text-green-800 border-green-200';
@@ -42,96 +43,51 @@
 
 <div class="space-y-6 animate-fade-in">
 	<div>
-		<h1 class="text-3xl font-bold text-gray-900">Boletín de Notas</h1>
-		<p class="text-gray-600 mt-1">Consulta las calificaciones de tus hijos</p>
+		<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Boletín de Notas</h1>
+		<p class="text-gray-600 dark:text-gray-400 mt-1">Consulta las calificaciones de tus hijos</p>
 	</div>
 
-	<!-- Student Summary -->
-	<div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
-		<div class="flex items-center justify-between">
-			<div>
-				<p class="text-blue-100 text-sm font-medium">Estudiante</p>
-				<p class="text-2xl font-bold mt-2">Juan Pérez</p>
-				<p class="text-blue-100 text-sm mt-1">Quinto Grado - Sección A</p>
-			</div>
-			<div class="text-6xl opacity-80">🎓</div>
+	{#if loading}
+		<div class="flex justify-center items-center py-12">
+			<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
 		</div>
-	</div>
-
-	<!-- Current Period Grades -->
-	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
-		<h2 class="text-xl font-bold text-gray-900 mb-4">
-			Calificaciones Actuales - 2do Trimestre 2024
-		</h2>
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-			{#each subjects as subject}
-				<div class="border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow">
-					<p class="text-sm text-gray-600 font-medium">{subject.name}</p>
-					<p class="text-3xl font-bold {getGradeColor(subject.grade)} mt-2">
-						{subject.grade.toFixed(1)}
-					</p>
-				</div>
-			{/each}
+	{:else if hijos.length === 0}
+		<!-- No children registered message -->
+		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+			<div class="text-6xl mb-4">👨‍👩‍👧‍👦</div>
+			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">No tienes hijos registrados</h3>
+			<p class="text-gray-600 dark:text-gray-400 mb-6">
+				Debes registrar al menos un hijo en la sección de Configuración para poder ver sus boletines de notas.
+			</p>
+			<a
+				href="/app/configuracion"
+				class="inline-block px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+			>
+				Ir a Configuración
+			</a>
 		</div>
-		<div class="mt-6 pt-6 border-t border-gray-200">
+	{:else if selectedHijo}
+		<!-- Student Summary -->
+		<div class="bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
-				<span class="text-lg font-semibold text-gray-900">Promedio General</span>
-				<span class="text-3xl font-bold text-green-600">9.0</span>
+				<div>
+					<p class="text-blue-100 text-sm font-medium">Estudiante</p>
+					<p class="text-2xl font-bold mt-2">{selectedHijo.nombre} {selectedHijo.apellido}</p>
+					<p class="text-blue-100 text-sm mt-1">{selectedHijo.grado} {selectedHijo.curso || ''}</p>
+				</div>
+				<div class="text-6xl opacity-80">🎓</div>
 			</div>
 		</div>
-	</div>
 
-	<!-- Historical Boletines -->
-	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-		<div class="px-6 py-4 border-b border-gray-200">
-			<h2 class="text-xl font-bold text-gray-900">Historial de Boletines</h2>
+		<!-- Message: No grades available yet -->
+		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+			<div class="text-6xl mb-4">📊</div>
+			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Calificaciones no disponibles</h3>
+			<p class="text-gray-600 dark:text-gray-400">
+				Las calificaciones de {selectedHijo.nombre} estarán disponibles próximamente.
+			</p>
 		</div>
-		<div class="overflow-x-auto">
-			<table class="w-full">
-				<thead class="bg-gray-50">
-					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Período</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Grado</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Promedio</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
-							>Estado</th
-						>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-gray-200">
-					{#each boletines as boletin}
-						<tr class="hover:bg-gray-50 transition-colors">
-							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm font-semibold text-gray-900">{boletin.period}</div>
-								<div class="text-xs text-gray-500">ID: #{boletin.id}</div>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{boletin.grade}</td>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<span class="text-lg font-bold {getGradeColor(boletin.average)}"
-									>{boletin.average.toFixed(1)}</span
-								>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<span
-									class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
-										boletin.status
-									)}"
-								>
-									{boletin.status}
-								</span>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	</div>
+	{/if}
 </div>
 
 <style>

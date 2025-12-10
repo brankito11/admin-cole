@@ -7,14 +7,12 @@
 	let isSidebarCollapsed = $state(false);
 
 	const adminMenuItems = [
-		{ href: '/admin', label: 'Dashboard', icon: '📊' },
 		{ href: '/admin/users', label: 'Cuentas', icon: '👥' },
 		{ href: '/admin/estudiantes', label: 'Estudiantes', icon: '🎓' },
 		{ href: '/admin/boletin-notas', label: 'Boletines', icon: '📚' },
 		{ href: '/admin/pagos', label: 'Pagos', icon: '💳' },
 		{ href: '/admin/reuniones', label: 'Reuniones', icon: '📅' },
-		{ href: '/admin/licencias', label: 'Licencias', icon: '📋' },
-		{ href: '/admin/configuracion', label: 'Configuración', icon: '⚙️' }
+		{ href: '/admin/licencias', label: 'Licencias', icon: '📋' }
 	];
 
 	function toggleSidebar() {

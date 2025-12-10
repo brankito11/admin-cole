@@ -84,8 +84,8 @@
 <div class="space-y-6 animate-fade-in">
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
-			<h1 class="text-3xl font-bold text-gray-900">Gestión de Estudiantes</h1>
-			<p class="text-gray-600 mt-1">Administra todos los estudiantes del colegio</p>
+			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Estudiantes</h1>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra todos los estudiantes del colegio</p>
 		</div>
 		<button
 			on:click={handleCreate}
@@ -134,7 +134,7 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-purple-100 text-sm font-medium">Grados</p>
@@ -148,10 +148,10 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-6">
+	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 mb-2">Buscar</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
 				<input
 					type="text"
 					bind:value={searchTerm}
@@ -160,7 +160,7 @@
 				/>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 mb-2">Filtrar por Grado</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Grado</label>
 				<select
 					bind:value={filterGrade}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -173,7 +173,7 @@
 				</select>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 mb-2">Filtrar por Estado</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Estado</label>
 				<select
 					bind:value={filterStatus}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -187,51 +187,51 @@
 	</div>
 
 	<!-- Students Table -->
-	<div class="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
 		<div class="overflow-x-auto">
 			<table class="w-full">
-				<thead class="bg-gray-50">
+				<thead class="bg-gray-50 dark:bg-gray-700">
 					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>ID</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estudiante</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Grado</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Padre/Tutor</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Contacto</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estado</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider"
+						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Acciones</th
 						>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200">
 					{#each filteredStudents as student}
-						<tr class="hover:bg-gray-50 transition-colors">
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900"
+						<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+							<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
 								>#{student.id}</td
 							>
 							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm font-semibold text-gray-900">{student.name}</div>
+								<div class="text-sm font-semibold text-gray-900 dark:text-white">{student.name}</div>
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm text-gray-900">{student.grade}</div>
-								<div class="text-xs text-gray-500">Sección {student.section}</div>
+								<div class="text-sm text-gray-900 dark:text-white">{student.grade}</div>
+								<div class="text-xs text-gray-500 dark:text-gray-400">Sección {student.section}</div>
 							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{student.parent}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{student.parent}</td>
 							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm text-gray-900">{student.email}</div>
-								<div class="text-xs text-gray-500">{student.phone}</div>
+								<div class="text-sm text-gray-900 dark:text-white">{student.email}</div>
+								<div class="text-xs text-gray-500 dark:text-gray-400">{student.phone}</div>
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap">
 								<span

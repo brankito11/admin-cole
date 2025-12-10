@@ -264,7 +264,7 @@
 			</button>
 			<button
 				on:click={() => (showModal = true)}
-				class="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+				class="px-6 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">🛡️</span>
 				Nuevo Admin
@@ -274,7 +274,7 @@
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-		<div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg dark:shadow-blue-900/20">
+		<div class="bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl p-6 text-white shadow-lg dark:shadow-blue-900/20">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-blue-100 text-sm font-medium">Total Usuarios</p>
@@ -284,7 +284,7 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg dark:shadow-purple-900/20">
+		<div class="bg-gradient-to-br from-rose-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg dark:shadow-purple-900/20">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-purple-100 text-sm font-medium">Administradores</p>
@@ -474,7 +474,7 @@
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+						class="px-6 py-2 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						disabled={creatingAdmin}
 					>
 						{#if creatingAdmin}

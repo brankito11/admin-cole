@@ -10,9 +10,7 @@
 		{ href: '/app/boletin-notas', label: 'Boletín de Notas', icon: '📊' },
 		{ href: '/app/licencias', label: 'Licencias', icon: '📋' },
 		{ href: '/app/pagos', label: 'Pagos', icon: '💳' },
-		{ href: '/app/reuniones', label: 'Reuniones', icon: '👥' },
-		{ href: '/app/padres', label: 'Padres', icon: '👨‍👩‍👧' },
-		{ href: '/app/configuracion', label: 'Configuración', icon: '⚙️' }
+		{ href: '/app/reuniones', label: 'Reuniones', icon: '👥' }
 	];
 
 	function toggleSidebar() {
@@ -28,7 +26,7 @@
 	}
 </script>
 
-<div class="flex h-screen bg-gray-50 overflow-hidden font-sans">
+<div class="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden font-sans">
 	<Sidebar
 		menuItems={parentMenuItems}
 		userRole="Padre de Familia"
