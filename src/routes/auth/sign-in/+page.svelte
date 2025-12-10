@@ -25,7 +25,7 @@
 </script>
 
 <div
-	class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4"
+	class="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#6E7D4E] via-[#AA7229] to-[#F0C48C] p-4"
 >
 	<div
 		in:fly={{ y: 20, duration: 600 }}
@@ -34,7 +34,7 @@
 		<div class="p-8">
 			<div class="text-center mb-8">
 				<div
-					class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-100 text-indigo-600 mb-4"
+					class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#D8E0C7] text-[#6E7D4E] mb-4"
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
@@ -65,7 +65,7 @@
 						type="text"
 						bind:value={username}
 						required
-						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent transition-all outline-none"
 						placeholder="usuario123"
 					/>
 				</div>
@@ -79,7 +79,7 @@
 						type="password"
 						bind:value={password}
 						required
-						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent transition-all outline-none"
 						placeholder="••••••••"
 					/>
 				</div>
@@ -93,7 +93,7 @@
 				<button
 					type="submit"
 					disabled={loading}
-					class="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+					class="w-full py-3 px-4 bg-gradient-to-r from-[#6E7D4E] to-[#AA7229] text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
 					{#if loading}
 						<span class="inline-block animate-spin mr-2">↻</span> Iniciando...
@@ -108,7 +108,7 @@
 			<p class="text-xs text-gray-500">
 				¿No tienes una cuenta? <a
 					href="/auth/sign-up"
-					class="text-indigo-600 hover:text-indigo-800 font-medium">Crear cuenta</a
+					class="text-[#6E7D4E] hover:text-[#AA7229] font-medium">Crear cuenta</a
 				>
 			</p>
 		</div>

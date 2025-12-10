@@ -26,32 +26,39 @@
 				return;
 			}
 
-			const response = await reunionService.getAllReuniones(token);
-			
-			// Map API response to UI format
-			meetings = response.map((reunion: Reunion) => {
-				const meetingDate = new Date(reunion.fecha);
-				const today = new Date();
-				// Reset hours for accurate date comparison
-				today.setHours(0, 0, 0, 0);
-				const meetingDateOnly = new Date(meetingDate);
-				meetingDateOnly.setHours(0, 0, 0, 0);
+			try {
+				const response = await reunionService.getAllReuniones(token);
+				
+				// Map API response to UI format
+				meetings = response.map((reunion: Reunion) => {
+					const meetingDate = new Date(reunion.fecha);
+					const today = new Date();
+					// Reset hours for accurate date comparison
+					today.setHours(0, 0, 0, 0);
+					const meetingDateOnly = new Date(meetingDate);
+					meetingDateOnly.setHours(0, 0, 0, 0);
 
-				const isFinished = meetingDateOnly < today;
+					const isFinished = meetingDateOnly < today;
 
-				return {
-					id: reunion._id,
-					title: reunion.nombre_reunion,
-					date: reunion.fecha,
-					time: reunion.hora_inicio,
-					location: 'A confirmar', // Default value as it's not in the interface
-					type: reunion.tema,
-					status: isFinished ? 'Finalizada' : 'Programada'
-				};
-			});
+					return {
+						id: reunion._id,
+						title: reunion.nombre_reunion,
+						date: reunion.fecha,
+						time: reunion.hora_inicio,
+						location: 'A confirmar', // Default value as it's not in the interface
+						type: reunion.tema,
+						status: isFinished ? 'Finalizada' : 'Programada'
+					};
+				});
+			} catch (apiError) {
+				// If API fails, just show empty state instead of breaking
+				console.error('Error fetching reuniones:', apiError);
+				meetings = [];
+				error = null; // Don't show error, just empty state
+			}
 
 		} catch (e) {
-			console.error('Error fetching reuniones:', e);
+			console.error('Error general:', e);
 			error = 'Error al cargar las reuniones';
 		} finally {
 			loading = false;

@@ -35,7 +35,7 @@
 	<div class="h-full flex flex-col">
 		<!-- Logo -->
 		<div
-			class="h-16 flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-600 to-purple-600 relative"
+			class="h-16 flex items-center justify-between px-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-[#6E7D4E] to-[#AA7229] dark:from-[#4a5436] dark:to-[#6b4a1a] relative"
 		>
 			{#if !isCollapsed}
 				<span class="text-xl font-bold text-white tracking-wide transition-opacity duration-300"
@@ -76,7 +76,7 @@
 							on:click={onClose}
 							class="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group
                 {$page.url.pathname.startsWith(item.href)
-								? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-semibold shadow-sm'
+								? 'bg-[#D8E0C7] dark:bg-[#4a5436] text-[#6E7D4E] dark:text-[#D8E0C7] font-semibold shadow-sm'
 								: 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}
 								{isCollapsed ? 'justify-center' : ''}"
 							title={isCollapsed ? item.label : ''}
@@ -87,7 +87,7 @@
 							{#if !isCollapsed}
 								<span class="transition-opacity duration-300">{item.label}</span>
 								{#if $page.url.pathname.startsWith(item.href)}
-									<div class="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400"></div>
+									<div class="ml-auto w-1.5 h-1.5 rounded-full bg-[#6E7D4E] dark:bg-[#D8E0C7]"></div>
 								{/if}
 							{/if}
 						</a>

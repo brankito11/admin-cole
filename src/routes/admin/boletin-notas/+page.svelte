@@ -94,7 +94,7 @@
 		</div>
 		<button
 			on:click={handleCreate}
-			class="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+			class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#5a6640] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
 			Crear Boletín
@@ -104,7 +104,7 @@
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
 		<div
-			class="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg"
+			class="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-6 text-white shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<div>
@@ -118,7 +118,7 @@
 		</div>
 
 		<div
-			class="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg"
+			class="bg-gradient-to-br from-[#AA7229] to-[#8b5d21] rounded-2xl p-6 text-white shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<div>
@@ -131,7 +131,7 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#5a6640] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-blue-100 text-sm font-medium">Promedio General</p>
@@ -141,7 +141,7 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#F0C48C] to-[#d9a86d] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-purple-100 text-sm font-medium">Total Boletines</p>
@@ -354,7 +354,7 @@
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg"
+						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#5a6640] text-white rounded-xl font-semibold hover:shadow-lg"
 					>
 						{editingBoletin ? 'Actualizar' : 'Guardar'}
 					</button>
