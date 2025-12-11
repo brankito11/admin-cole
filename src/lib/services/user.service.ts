@@ -89,16 +89,19 @@ class UserService {
 		}
 	}
 	// Importar padres desde Excel
+	// Endpoint: POST /api/users/import-padres
+	// Columnas del Excel: Email, Password, Nombre, Apellido, Teléfono
 	async importPadres(token: string, file: File): Promise<any> {
 		try {
-			console.log('📂 Importare Padres request');
+			console.log('📂 Importando Padres desde Excel...');
 			const formData = new FormData();
 			formData.append('file', file);
 
-			const response = await fetch(`${API_BASE_URL}/users/import-padres`, {
+			const response = await fetch(`${API_BASE_URL}/api/users/import-padres`, {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${token}`
+					// NO incluir Content-Type, fetch lo establece automáticamente con boundary para multipart/form-data
 				},
 				body: formData
 			});
@@ -110,9 +113,11 @@ class UserService {
 				throw new Error(`Error ${response.status}: ${errorText}`);
 			}
 
-			return await response.json();
+			const result = await response.json();
+			console.log('✅ Padres importados exitosamente:', result);
+			return result;
 		} catch (error) {
-			console.error('💥 Import exception:', error);
+			console.error('💥 Error al importar padres:', error);
 			throw error;
 		}
 	}

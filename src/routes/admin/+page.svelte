@@ -1,32 +1,37 @@
 <script lang="ts">
+	// Color palette matching login page: olive green, gold, beige
 	const sections = [
 		{
 			title: 'Gestión de Boletines',
 			description: 'Administrar calificaciones y reportes académicos',
 			icon: '📚',
 			href: '/admin/boletines',
-			color: 'from-blue-400 to-indigo-500'
+			bgColor: 'bg-[#6E7D4E]', // Olive green
+			hoverColor: 'hover:bg-[#5A6840]'
 		},
 		{
 			title: 'Gestión de Pagos',
 			description: 'Control de pagos, facturación y deudas',
 			icon: '💳',
 			href: '/admin/pagos',
-			color: 'from-teal-400 to-cyan-500'
+			bgColor: 'bg-[#AA7229]', // Gold
+			hoverColor: 'hover:bg-[#8B5A1B]'
 		},
 		{
 			title: 'Reuniones y Eventos',
 			description: 'Programar y gestionar actividades escolares',
 			icon: '📅',
 			href: '/admin/reuniones',
-			color: 'from-cyan-400 to-blue-500'
+			bgColor: 'bg-[#8B9D6E]', // Light olive
+			hoverColor: 'hover:bg-[#6E7D4E]'
 		},
 		{
 			title: 'Gestión de Licencias',
 			description: 'Administrar permisos y licencias del personal/alumnos',
 			icon: '📋',
 			href: '/admin/licencias',
-			color: 'from-sky-400 to-cyan-500'
+			bgColor: 'bg-[#C4944A]', // Light gold
+			hoverColor: 'hover:bg-[#AA7229]'
 		}
 	];
 </script>
@@ -41,19 +46,19 @@
 		{#each sections as section}
 			<a
 				href={section.href}
-				class="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 animate-fade-in-up"
+				class="group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 animate-fade-in-up hover:border-[#AA7229]"
 			>
 				<div class="flex flex-col items-center text-center">
 					<!-- Icon -->
 					<div
-						class="w-16 h-16 rounded-full bg-gradient-to-r {section.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg"
+						class="w-16 h-16 rounded-full {section.bgColor} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg"
 					>
 						<span class="text-3xl">{section.icon}</span>
 					</div>
 
 					<!-- Title -->
 					<h2
-						class="text-lg font-bold text-gray-900 dark:text-white mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors"
+						class="text-lg font-bold text-gray-900 dark:text-white mb-2 group-hover:text-[#6E7D4E] dark:group-hover:text-[#8B9D6E] transition-colors"
 					>
 						{section.title}
 					</h2>
@@ -66,7 +71,7 @@
 					<!-- Arrow -->
 					<div class="mt-auto">
 						<span
-							class="inline-flex items-center text-indigo-600 dark:text-indigo-400 font-semibold text-sm group-hover:gap-2 gap-1 transition-all"
+							class="inline-flex items-center text-[#AA7229] dark:text-[#C4944A] font-semibold text-sm group-hover:gap-2 gap-1 transition-all"
 						>
 							Ver más
 							<svg

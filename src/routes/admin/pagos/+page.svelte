@@ -162,7 +162,7 @@
 		</div>
 		<button
 			on:click={handleCreate}
-			class="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+			class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
 			Registrar Pago
@@ -207,11 +207,11 @@
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
 		<div
-			class="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg"
+			class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-green-100 text-sm font-medium">Total Pagado</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Total Pagado</p>
 					<p class="text-3xl font-bold mt-2">Bs {totalPaid.toFixed(2)}</p>
 				</div>
 				<div class="text-5xl opacity-80">✓</div>
@@ -219,31 +219,31 @@
 		</div>
 
 		<div
-			class="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg"
+			class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-yellow-100 text-sm font-medium">Pendiente</p>
+					<p class="text-[#F0E6D2] text-sm font-medium">Pendiente</p>
 					<p class="text-3xl font-bold mt-2">Bs {totalPending.toFixed(2)}</p>
 				</div>
 				<div class="text-5xl opacity-80">⏳</div>
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-red-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#8B5A1B] to-[#AA7229] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-red-100 text-sm font-medium">Vencido</p>
+					<p class="text-[#F0E6D2] text-sm font-medium">Vencido</p>
 					<p class="text-3xl font-bold mt-2">Bs {totalOverdue.toFixed(2)}</p>
 				</div>
 				<div class="text-5xl opacity-80">⚠️</div>
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#5A6840] to-[#6E7D4E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-blue-100 text-sm font-medium">Total Registros</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Total Registros</p>
 					<p class="text-3xl font-bold mt-2">{filteredPayments.length}</p>
 				</div>
 				<div class="text-5xl opacity-80">📋</div>
@@ -449,7 +449,7 @@
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg transition-all"
 					>
 						{editingPayment ? 'Actualizar' : 'Guardar'}
 					</button>

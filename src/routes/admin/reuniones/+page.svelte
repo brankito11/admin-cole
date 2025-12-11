@@ -225,7 +225,7 @@
 		</div>
 		<button
 			onclick={openCreateModal}
-			class="px-6 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+			class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
 			Programar Evento
@@ -242,31 +242,31 @@
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 		<div
-			class="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg"
+			class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-green-100 text-sm font-medium">Programadas</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Programadas</p>
 					<p class="text-3xl font-bold mt-2">{programadas}</p>
 				</div>
 				<div class="text-5xl opacity-80">📅</div>
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-gray-500 to-gray-700 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-gray-100 text-sm font-medium">Completadas</p>
+					<p class="text-[#F0E6D2] text-sm font-medium">Completadas</p>
 					<p class="text-3xl font-bold mt-2">{completadas}</p>
 				</div>
 				<div class="text-5xl opacity-80">✓</div>
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#5A6840] to-[#6E7D4E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-blue-100 text-sm font-medium">Total Eventos</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Total Eventos</p>
 					<p class="text-3xl font-bold mt-2">{reuniones.length}</p>
 				</div>
 				<div class="text-5xl opacity-80">📋</div>
@@ -509,7 +509,7 @@
 					<button
 						type="submit"
 						disabled={loading}
-						class="px-6 py-2 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50"
+						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50"
 					>
 						{loading ? 'Guardando...' : modalMode === 'create' ? 'Guardar' : 'Actualizar'}
 					</button>

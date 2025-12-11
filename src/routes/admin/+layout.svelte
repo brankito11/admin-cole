@@ -28,7 +28,7 @@
 	}
 </script>
 
-<div class="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden font-sans">
+<div class="flex h-screen bg-[#F5EFE6] dark:bg-gray-900 overflow-hidden font-sans">
 	<Sidebar
 		menuItems={adminMenuItems}
 		userRole="Administrador"

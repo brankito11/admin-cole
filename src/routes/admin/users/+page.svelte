@@ -317,21 +317,21 @@
 		<div class="flex gap-4">
 			<button
 				on:click={openBatchModal}
-				class="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+				class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">📤</span>
 				Subir por lote
 			</button>
 			<button
 				on:click={() => (showParentModal = true)}
-				class="px-6 py-3 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+				class="px-6 py-3 bg-gradient-to-r from-[#AA7229] to-[#C4944A] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">👨‍👩‍👧</span>
 				Nuevo Padre
 			</button>
 			<button
 				on:click={() => (showModal = true)}
-				class="px-6 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+				class="px-6 py-3 bg-gradient-to-r from-[#5A6840] to-[#6E7D4E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">🛡️</span>
 				Nuevo Admin
@@ -393,20 +393,20 @@
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-		<div class="bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl p-6 text-white shadow-lg dark:shadow-blue-900/20">
+		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-blue-100 text-sm font-medium">Total Usuarios</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Total Usuarios</p>
 					<p class="text-3xl font-bold mt-2">{users.length}</p>
 				</div>
 				<div class="text-5xl opacity-80">👥</div>
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-rose-400 to-pink-500 rounded-2xl p-6 text-white shadow-lg dark:shadow-purple-900/20">
+		<div class="bg-gradient-to-br from-[#5A6840] to-[#6E7D4E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-purple-100 text-sm font-medium">Administradores</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Administradores</p>
 					<p class="text-3xl font-bold mt-2">
 						{users.filter((u) => u.role === 'ADMIN').length}
 					</p>
@@ -416,11 +416,11 @@
 		</div>
 
 		<div
-			class="bg-gradient-to-br from-indigo-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg dark:shadow-indigo-900/20"
+			class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-indigo-100 text-sm font-medium">Padres</p>
+					<p class="text-[#F0E6D2] text-sm font-medium">Padres</p>
 					<p class="text-3xl font-bold mt-2">
 						{users.filter((u) => u.role === 'PADRE').length}
 					</p>
@@ -439,14 +439,14 @@
 					type="text"
 					bind:value={searchTerm}
 					placeholder="Buscar por nombre, usuario o email..."
-					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 				/>
 			</div>
 			<div>
 				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Rol</label>
 				<select
 					bind:value={filterRole}
-					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 				>
 					<option>Todos</option>
 					<option>Admin</option>
@@ -593,7 +593,7 @@
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+						class="px-6 py-2 bg-gradient-to-r from-[#5A6840] to-[#6E7D4E] text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						disabled={creatingAdmin}
 					>
 						{#if creatingAdmin}
@@ -685,7 +685,7 @@
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+						class="px-6 py-2 bg-gradient-to-r from-[#AA7229] to-[#C4944A] text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
 						disabled={creatingParent}
 					>
 						{#if creatingParent}

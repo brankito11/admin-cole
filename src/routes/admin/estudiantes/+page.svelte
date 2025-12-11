@@ -270,14 +270,14 @@
 		<div class="flex gap-2">
 			<button
 				on:click={openBatchModal}
-				class="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+				class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">📤</span>
 				Subir por lote
 			</button>
 			<button
 				on:click={handleCreate}
-				class="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+				class="px-6 py-3 bg-gradient-to-r from-[#AA7229] to-[#C4944A] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">➕</span>
 				Nuevo Estudiante
@@ -381,10 +381,10 @@
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-		<div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-blue-100 text-sm font-medium">Total Estudiantes</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Total Estudiantes</p>
 					<p class="text-3xl font-bold mt-2">{allStudents.length}</p>
 				</div>
 				<div class="text-5xl opacity-80">🎓</div>
@@ -392,11 +392,11 @@
 		</div>
 
 		<div
-			class="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg"
+			class="bg-gradient-to-br from-[#5A6840] to-[#6E7D4E] rounded-2xl p-6 text-white shadow-lg"
 		>
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-green-100 text-sm font-medium">Activos</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Activos</p>
 					<p class="text-3xl font-bold mt-2">
 						{allStudents.filter((s) => s.status === 'Activo').length}
 					</p>
@@ -405,10 +405,10 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-gray-500 to-gray-700 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-gray-100 text-sm font-medium">Inactivos</p>
+					<p class="text-[#F0E6D2] text-sm font-medium">Inactivos</p>
 					<p class="text-3xl font-bold mt-2">
 						{allStudents.filter((s) => s.status === 'Inactivo').length}
 					</p>
@@ -417,10 +417,10 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#8B5A1B] to-[#AA7229] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-purple-100 text-sm font-medium">Grados</p>
+					<p class="text-[#F0E6D2] text-sm font-medium">Grados</p>
 					<p class="text-3xl font-bold mt-2">
 						{new Set(allStudents.map((s) => s.grade)).size}
 					</p>
@@ -671,7 +671,7 @@
 					<button
 						type="submit"
 						disabled={loading}
-						class="px-6 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
 					>
 						{loading ? 'Guardando...' : (editingStudent ? 'Actualizar' : 'Guardar')}
 					</button>

@@ -84,7 +84,7 @@
 		<div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
 			<div class="flex items-center gap-3 {isCollapsed ? 'flex-col' : ''}">
 				<div
-					class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-md flex-shrink-0"
+					class="w-10 h-10 rounded-full bg-gradient-to-br from-[#6E7D4E] to-[#AA7229] flex items-center justify-center text-white font-bold shadow-md flex-shrink-0"
 				>
 					{$auth?.nombre?.[0] || 'U'}
 				</div>
@@ -143,12 +143,12 @@
 	<!-- Botón colapsar solo en desktop (Centrado verticalmente en el borde) -->
 	<button
 		on:click={onToggleCollapse}
-		class="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow-lg hover:shadow-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all z-50 items-center justify-center group cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+		class="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow-lg hover:shadow-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all z-50 items-center justify-center group cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#6E7D4E]"
 		aria-label={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
 	>
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
-			class="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+			class="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-[#6E7D4E] dark:group-hover:text-[#8B9D6E] transition-colors"
 			fill="none"
 			viewBox="0 0 24 24"
 			stroke="currentColor"

@@ -3,16 +3,20 @@
 	import { fade, fly } from 'svelte/transition';
 
 	let email = '';
+	let username = '';
 	let password = '';
 	let error = '';
 	let loading = false;
+	let isAdminMode = false; // Toggle between parent and admin login
 
 	async function handleLogin() {
 		loading = true;
 		error = '';
 
 		try {
-			const success = await auth.login({ username: email, password });
+			// Use username for admin, email for parents
+			const loginUsername = isAdminMode ? username : email;
+			const success = await auth.login({ username: loginUsername, password });
 			if (!success) {
 				error = 'Credenciales inválidas. Intente nuevamente.';
 			}
@@ -21,6 +25,15 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	function toggleMode() {
+		isAdminMode = !isAdminMode;
+		error = '';
+		// Clear fields when switching modes
+		email = '';
+		username = '';
+		password = '';
 	}
 </script>
 
@@ -32,43 +45,100 @@
 		class="w-full max-w-md bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl overflow-hidden"
 	>
 		<div class="p-8">
-			<div class="text-center mb-8">
+			<div class="text-center mb-6">
 				<div
 					class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#D8E0C7] text-[#6E7D4E] mb-4"
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-8 w-8"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-						/>
-					</svg>
+					{#if isAdminMode}
+						<!-- Admin Shield Icon -->
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-8 w-8"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+							/>
+						</svg>
+					{:else}
+						<!-- Book Icon for Parents -->
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-8 w-8"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+							/>
+						</svg>
+					{/if}
 				</div>
 				<h2 class="text-3xl font-bold text-gray-900">Bienvenido</h2>
-				<p class="text-gray-500 mt-2">Ingresa a tu cuenta escolar</p>
+				<p class="text-gray-500 mt-2">
+					{isAdminMode ? 'Acceso Administrador' : 'Ingresa a tu cuenta escolar'}
+				</p>
+			</div>
+
+			<!-- Mode Toggle Tabs -->
+			<div class="flex mb-6 bg-gray-100 rounded-xl p-1">
+				<button
+					type="button"
+					on:click={() => { if (isAdminMode) toggleMode(); }}
+					class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 {!isAdminMode ? 'bg-white shadow-sm text-[#6E7D4E]' : 'text-gray-500 hover:text-gray-700'}"
+				>
+					👨‍👩‍👧 Padre de Familia
+				</button>
+				<button
+					type="button"
+					on:click={() => { if (!isAdminMode) toggleMode(); }}
+					class="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all duration-200 {isAdminMode ? 'bg-white shadow-sm text-[#AA7229]' : 'text-gray-500 hover:text-gray-700'}"
+				>
+					🔐 Administrador
+				</button>
 			</div>
 
 			<form on:submit|preventDefault={handleLogin} class="space-y-6">
-				<div>
-					<label for="email" class="block text-sm font-medium text-gray-700 mb-1"
-						>Correo Electrónico</label
-					>
-					<input
-						id="email"
-						type="email"
-						bind:value={email}
-						required
-						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent transition-all outline-none"
-						placeholder="correo@ejemplo.com"
-					/>
-				</div>
+				{#if isAdminMode}
+					<!-- Admin Username Field -->
+					<div transition:fade={{ duration: 200 }}>
+						<label for="username" class="block text-sm font-medium text-gray-700 mb-1"
+							>Nombre de Usuario</label
+						>
+						<input
+							id="username"
+							type="text"
+							bind:value={username}
+							required
+							class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#AA7229] focus:border-transparent transition-all outline-none"
+							placeholder="admin"
+						/>
+					</div>
+				{:else}
+					<!-- Parent Email Field -->
+					<div transition:fade={{ duration: 200 }}>
+						<label for="email" class="block text-sm font-medium text-gray-700 mb-1"
+							>Correo Electrónico</label
+						>
+						<input
+							id="email"
+							type="email"
+							bind:value={email}
+							required
+							class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent transition-all outline-none"
+							placeholder="correo@ejemplo.com"
+						/>
+					</div>
+				{/if}
 
 				<div>
 					<label for="password" class="block text-sm font-medium text-gray-700 mb-1"
@@ -79,7 +149,7 @@
 						type="password"
 						bind:value={password}
 						required
-						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent transition-all outline-none"
+						class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-{isAdminMode ? '[#AA7229]' : '[#6E7D4E]'} focus:border-transparent transition-all outline-none"
 						placeholder="••••••••"
 					/>
 				</div>
@@ -93,24 +163,26 @@
 				<button
 					type="submit"
 					disabled={loading}
-					class="w-full py-3 px-4 bg-gradient-to-r from-[#6E7D4E] to-[#AA7229] text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+					class="w-full py-3 px-4 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed {isAdminMode ? 'bg-gradient-to-r from-[#AA7229] to-[#8B5A1B]' : 'bg-gradient-to-r from-[#6E7D4E] to-[#AA7229]'}"
 				>
 					{#if loading}
 						<span class="inline-block animate-spin mr-2">↻</span> Iniciando...
 					{:else}
-						Iniciar Sesión
+						{isAdminMode ? '🔐 Acceder como Admin' : 'Iniciar Sesión'}
 					{/if}
 				</button>
 			</form>
 		</div>
 
-		<div class="bg-gray-50 px-8 py-4 border-t border-gray-100 text-center">
-			<p class="text-xs text-gray-500">
-				¿No tienes una cuenta? <a
-					href="/auth/sign-up"
-					class="text-[#6E7D4E] hover:text-[#AA7229] font-medium">Crear cuenta</a
-				>
-			</p>
-		</div>
+		{#if !isAdminMode}
+			<div transition:fade class="bg-gray-50 px-8 py-4 border-t border-gray-100 text-center">
+				<p class="text-xs text-gray-500">
+					¿No tienes una cuenta? <a
+						href="/auth/sign-up"
+						class="text-[#6E7D4E] hover:text-[#AA7229] font-medium">Crear cuenta</a
+					>
+				</p>
+			</div>
+		{/if}
 	</div>
 </div>
