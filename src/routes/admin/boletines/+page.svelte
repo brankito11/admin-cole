@@ -54,18 +54,18 @@
 		return matchesSearch && matchesGrade && matchesStatus;
 	});
 
-	function getStatusStyle(status: string) {
+	const getStatusStyle = (status: string) => {
 		if (status === 'Publicado') return 'bg-green-100 text-green-800 border-green-200';
 		if (status === 'Borrador') return 'bg-yellow-100 text-yellow-800 border-yellow-200';
 		return 'bg-gray-100 text-gray-800 border-gray-200';
-	}
+	};
 
-	function getGradeColor(grade: number) {
+	const getGradeColor = (grade: number) => {
 		if (grade >= 9) return 'text-green-600 font-bold';
 		if (grade >= 7) return 'text-blue-600 font-bold';
 		if (grade >= 5) return 'text-yellow-600 font-bold';
 		return 'text-red-600 font-bold';
-	}
+	};
 
 	function handleCreate() {
 		editingBoletin = null;
@@ -235,16 +235,10 @@
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{boletin.period}</td>
 							<td class="px-6 py-4 whitespace-nowrap">
-								<span class="text-lg {getGradeColor(boletin.average)}"
-									>{boletin.average.toFixed(1)}</span
-								>
+								<span class="text-lg {getGradeColor(boletin.average)}">{boletin.average.toFixed(1)}</span>
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap">
-								<span
-									class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
-										boletin.status
-									)}"
-								>
+								<span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(boletin.status)}">
 									{boletin.status}
 								</span>
 							</td>

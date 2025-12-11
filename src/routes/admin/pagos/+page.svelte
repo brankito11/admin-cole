@@ -57,22 +57,50 @@
 	let searchTerm = '';
 	let filterStatus = 'Todos';
 
+	// Level and Grade Interaction
+	let selectedLevel = '';
+	let selectedGrade = '';
+
+	const levels: Record<string, string[]> = {
+		'Inicial': ['Pre-Kinder', 'Kinder'],
+		'Primaria': ['Primer Grado', 'Segundo Grado', 'Tercer Grado', 'Cuarto Grado', 'Quinto Grado', 'Sexto Grado'],
+		'Secundaria': ['Primer Año', 'Segundo Año', 'Tercer Año', 'Cuarto Año', 'Quinto Año', 'Sexto Año']
+	};
+
+	function selectLevel(level: string) {
+		selectedLevel = level;
+		selectedGrade = ''; // Reset grade
+	}
+
+	function selectGrade(grade: string) {
+		selectedGrade = grade;
+	}
+
 	$: filteredPayments = allPayments.filter((payment) => {
 		const matchesSearch =
 			payment.student.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			payment.parent.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			payment.concept.toLowerCase().includes(searchTerm.toLowerCase());
 		const matchesStatus = filterStatus === 'Todos' || payment.status === filterStatus;
-		return matchesSearch && matchesStatus;
+		
+		// Filter by Grade if selected
+		// Note: We match partially if naming is different (e.g. "Primer Año" vs "Primer Grado" in data). 
+		// Existing data uses "Grado". I'll assume exact match or partial match for safety.
+		// For Primary (Grado) vs Secondary (Año), ensure data aligns or just check inclusion.
+		// Given mock data has "Quinto Grado", let's use flexible matching.
+		const matchesGrade = selectedGrade === '' || payment.grade.includes(selectedGrade) || (selectedGrade.includes('Año') && payment.grade.includes(selectedGrade.replace('Año', 'Grado'))); 
+		// Fallback for Secondary if data uses Grado.
+		
+		return matchesSearch && matchesStatus && matchesGrade;
 	});
 
-	$: totalPaid = allPayments
+	$: totalPaid = filteredPayments
 		.filter((p) => p.status === 'Pagado')
 		.reduce((sum, p) => sum + p.amount, 0);
-	$: totalPending = allPayments
+	$: totalPending = filteredPayments
 		.filter((p) => p.status === 'Pendiente')
 		.reduce((sum, p) => sum + p.amount, 0);
-	$: totalOverdue = allPayments
+	$: totalOverdue = filteredPayments
 		.filter((p) => p.status === 'Vencido')
 		.reduce((sum, p) => sum + p.amount, 0);
 
@@ -141,6 +169,41 @@
 		</button>
 	</div>
 
+	<!-- Level Selection -->
+	<div class="flex flex-wrap gap-4">
+		{#each Object.keys(levels) as level}
+			<button
+				on:click={() => selectLevel(level)}
+				class="px-6 py-3 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 text-lg flex-1 md:flex-none
+				{selectedLevel === level
+					? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white ring-2 ring-offset-2 ring-blue-500' 
+					: 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
+			>
+				{level}
+			</button>
+		{/each}
+	</div>
+
+	<!-- Grade Selection (Visible when Level selected) -->
+	{#if selectedLevel}
+		<div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 animate-slide-up">
+			<h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wider">Cursos de {selectedLevel}</h3>
+			<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+				{#each levels[selectedLevel] as grade}
+					<button
+						on:click={() => selectGrade(grade)}
+						class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-center
+						{selectedGrade === grade
+							? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 shadow-sm' 
+							: 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600'}"
+					>
+						{grade}
+					</button>
+				{/each}
+			</div>
+		</div>
+	{/if}
+
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
 		<div
@@ -181,7 +244,7 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-blue-100 text-sm font-medium">Total Registros</p>
-					<p class="text-3xl font-bold mt-2">{allPayments.length}</p>
+					<p class="text-3xl font-bold mt-2">{filteredPayments.length}</p>
 				</div>
 				<div class="text-5xl opacity-80">📋</div>
 			</div>
@@ -197,14 +260,14 @@
 					type="text"
 					bind:value={searchTerm}
 					placeholder="Buscar por estudiante, padre o concepto..."
-					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
 				/>
 			</div>
 			<div>
 				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Estado</label>
 				<select
 					bind:value={filterStatus}
-					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 				>
 					<option>Todos</option>
 					<option>Pagado</option>
@@ -303,72 +366,72 @@
 
 {#if showModal}
 	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-		<div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8">
-			<h2 class="text-2xl font-bold text-gray-900 mb-6">
+		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up">
+			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
 				{editingPayment ? 'Editar Pago' : 'Registrar Nuevo Pago'}
 			</h2>
 			<form on:submit={handleSubmit} class="space-y-4">
 				<div class="grid grid-cols-2 gap-4">
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Estudiante</label>
+						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Estudiante</label>
 						<input
 							type="text"
 							bind:value={formData.student}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Padre/Tutor</label>
+						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Padre/Tutor</label>
 						<input
 							type="text"
 							bind:value={formData.parent}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Concepto</label>
+						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Concepto</label>
 						<input
 							type="text"
 							bind:value={formData.concept}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Grado</label>
+						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Grado</label>
 						<input
 							type="text"
 							bind:value={formData.grade}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Monto</label>
+						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Monto</label>
 						<input
 							type="number"
 							step="0.01"
 							bind:value={formData.amount}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Fecha</label>
+						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Fecha</label>
 						<input
 							type="date"
 							bind:value={formData.date}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Estado</label>
+						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Estado</label>
 						<select
 							bind:value={formData.status}
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						>
 							<option>Pagado</option>
 							<option>Pendiente</option>
@@ -380,13 +443,13 @@
 					<button
 						type="button"
 						on:click={() => (showModal = false)}
-						class="px-6 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold"
+						class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold transition-colors"
 					>
 						Cancelar
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg"
+						class="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
 					>
 						{editingPayment ? 'Actualizar' : 'Guardar'}
 					</button>
@@ -400,10 +463,23 @@
 	.animate-fade-in {
 		animation: fadeIn 0.5s ease-out forwards;
 	}
+	.animate-slide-up {
+		animation: slideUp 0.3s ease-out forwards;
+	}
 	@keyframes fadeIn {
 		from {
 			opacity: 0;
 			transform: translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+	@keyframes slideUp {
+		from {
+			opacity: 0;
+			transform: translateY(20px);
 		}
 		to {
 			opacity: 1;

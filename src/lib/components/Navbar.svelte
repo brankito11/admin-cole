@@ -10,7 +10,7 @@
 	let bellComponent: NotificationBell;
 
 	function getPageTitle(pathname: string) {
-		if (pathname.includes('/boletin-notas')) return 'Boletín de Notas';
+		if (pathname.includes('/boletines') || pathname.includes('/boletin-notas')) return 'Boletín de Notas';
 		if (pathname.includes('/licencias')) return 'Licencias';
 		if (pathname.includes('/pagos')) return 'Pagos';
 		if (pathname.includes('/reuniones')) return 'Reuniones';

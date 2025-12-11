@@ -9,7 +9,7 @@
 	const adminMenuItems = [
 		{ href: '/admin/users', label: 'Cuentas', icon: '👥' },
 		{ href: '/admin/estudiantes', label: 'Estudiantes', icon: '🎓' },
-		{ href: '/admin/boletin-notas', label: 'Boletines', icon: '📚' },
+		{ href: '/admin/boletines', label: 'Boletines', icon: '📚' },
 		{ href: '/admin/pagos', label: 'Pagos', icon: '💳' },
 		{ href: '/admin/reuniones', label: 'Reuniones', icon: '📅' },
 		{ href: '/admin/licencias', label: 'Licencias', icon: '📋' }

@@ -1,5 +1,5 @@
 import { ErrorType } from '$lib/interfaces';
-import { AppError, errorService } from '$lib/services';
+import { AppError, errorService } from '../services/error.service';
 import { API_CONFIG, defaultHeaders } from './api.config';
 import { browser } from '$app/environment';
 import { AUTH_TOKEN_KEY, USER_DATA_KEY } from '$lib/constants';
@@ -47,10 +47,15 @@ class ApiCole {
 		try {
 			const headers = this.buildHeaders(options);
 
+			const isFormData = data instanceof FormData;
+			if (isFormData) {
+				delete headers['Content-Type'];
+			}
+
 			const response = await fetch(`${API_CONFIG.BASE_URL}/api${endpoint}`, {
 				method,
 				headers,
-				body: data ? JSON.stringify(data) : undefined,
+				body: isFormData ? (data as FormData) : data ? JSON.stringify(data) : undefined,
 				signal: controller.signal
 			});
 

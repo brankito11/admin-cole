@@ -45,25 +45,9 @@
 				<span class="text-xl font-bold text-white mx-auto">AC</span>
 			{/if}
 
-			<!-- Botón cerrar solo en mobile -->
-			<button
-				on:click={onClose}
-				class="lg:hidden p-1 text-white hover:bg-white hover:bg-opacity-20 rounded transition-colors"
-				aria-label="Cerrar menú"
-			>
-				<span class="text-2xl">✕</span>
-			</button>
 
-			<!-- Botón colapsar solo en desktop -->
-			<button
-				on:click={onToggleCollapse}
-				class="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-full shadow-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors flex items-center justify-center"
-				aria-label={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
-			>
-				<span class="text-xs text-gray-600 dark:text-gray-300 transition-transform duration-300 {isCollapsed ? 'rotate-180' : ''}"
-					>◀</span
-				>
-			</button>
+
+
 		</div>
 
 		<!-- Navigation -->
@@ -156,4 +140,25 @@
 			</div>
 		</div>
 	</div>
+	<!-- Botón colapsar solo en desktop (Centrado verticalmente en el borde) -->
+	<button
+		on:click={onToggleCollapse}
+		class="hidden lg:flex absolute -right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-full shadow-lg hover:shadow-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all z-50 items-center justify-center group cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+		aria-label={isCollapsed ? 'Expandir menú' : 'Colapsar menú'}
+	>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			class="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+			fill="none"
+			viewBox="0 0 24 24"
+			stroke="currentColor"
+			stroke-width="2"
+		>
+			{#if isCollapsed}
+				<path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+			{:else}
+				<path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+			{/if}
+		</svg>
+	</button>
 </aside>

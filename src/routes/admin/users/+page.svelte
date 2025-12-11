@@ -11,9 +11,69 @@
 	let loading = true;
 	let error: string | null = null;
 	let showModal = false;
+	// Batch Upload State
+	let showBatchModal = false;
+	let batchFile: File | null = null;
+	let loadingBatch = false;
+
 	let creatingAdmin = false;
 	let searchTerm = '';
 	let filterRole = 'Todos';
+
+    async function handleCreateAdmin() {
+        if (!$auth?.token) return;
+		creatingAdmin = true;
+		try {
+			await authService.createAdmin($auth.token, newAdmin);
+			alert('Administrador creado exitosamente');
+			showModal = false;
+			newAdmin = { username: '', password: '' };
+			await loadUsers();
+		} catch (e: any) {
+			console.error(e);
+			alert('Error al crear administrador: ' + (e.message || 'Error desconocido'));
+		} finally {
+			creatingAdmin = false;
+		}
+	}
+
+	// ... existing script ...
+
+	function openBatchModal() {
+		showBatchModal = true;
+	}
+
+	function closeBatchModal() {
+		showBatchModal = false;
+		batchFile = null;
+	}
+
+	function handleFileSelect(event: Event) {
+		const target = event.target as HTMLInputElement;
+		if (target.files && target.files.length > 0) {
+			batchFile = target.files[0];
+		}
+	}
+
+	async function handleBatchUpload() {
+		if (!batchFile || !$auth?.token) return;
+		loadingBatch = true;
+		try {
+			await userService.importPadres($auth.token, batchFile);
+			alert('Padres importados exitosamente');
+			closeBatchModal();
+			await loadUsers(); // Refresh list
+		} catch (e: any) {
+			console.error('Error importing:', e);
+			alert('Error al importar: ' + e.message);
+		} finally {
+			loadingBatch = false;
+		}
+	}
+
+    // ... (rest of the file content)
+
+	// ... (rest of the file content)
 
 	// Child Management State
 	let showChildModal = false;
@@ -256,6 +316,13 @@
 		</div>
 		<div class="flex gap-4">
 			<button
+				on:click={openBatchModal}
+				class="px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+			>
+				<span class="text-xl">📤</span>
+				Subir por lote
+			</button>
+			<button
 				on:click={() => (showParentModal = true)}
 				class="px-6 py-3 bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
@@ -271,6 +338,58 @@
 			</button>
 		</div>
 	</div>
+
+	<!-- Batch Upload Modal -->
+	{#if showBatchModal}
+		<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+			<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up">
+				<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">📤 Subir Padres por lote</h2>
+
+				<div class="space-y-6">
+					<div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center bg-gray-50 dark:bg-gray-700/50">
+						{#if batchFile}
+							<div class="text-emerald-500 mb-2 text-xl">📄</div>
+							<p class="text-gray-900 dark:text-white font-medium">{batchFile.name}</p>
+							<p class="text-sm text-gray-500 dark:text-gray-400">{(batchFile.size / 1024).toFixed(2)} KB</p>
+						{:else}
+							<div class="text-4xl mb-4 text-gray-400">📊</div>
+							<p class="text-gray-600 dark:text-gray-300 font-medium mb-2">Arrastra tu archivo Excel aquí</p>
+							<input
+								type="file"
+								accept=".xlsx, .xls"
+								class="hidden"
+								id="file-upload-padres"
+								on:change={handleFileSelect}
+							/>
+							<label
+								for="file-upload-padres"
+								class="inline-block px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors font-medium"
+							>
+								Seleccionar Archivo
+							</label>
+						{/if}
+					</div>
+
+					<div class="flex gap-3">
+						<button
+							on:click={closeBatchModal}
+							class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-semibold"
+						>
+							Cancelar
+						</button>
+						<button
+							on:click={handleBatchUpload}
+							disabled={!batchFile || loadingBatch}
+							class="flex-1 px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg hover:from-emerald-600 hover:to-green-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{loadingBatch ? 'Procesando...' : 'Aceptar'}
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">

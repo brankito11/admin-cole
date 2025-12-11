@@ -18,6 +18,8 @@
 	let selectedPadre: Padre | null = $state(null);
 	let showDeleteConfirm = $state(false);
 	let padreToDelete: Padre | null = $state(null);
+	let showBatchModal = $state(false);
+	let batchFile: File | null = $state(null);
 
 	// Form data
 	let formData = $state({
@@ -140,6 +142,31 @@
 		}
 	}
 
+	function openBatchModal() {
+		showBatchModal = true;
+		batchFile = null;
+	}
+
+	function closeBatchModal() {
+		showBatchModal = false;
+		batchFile = null;
+	}
+
+	function handleFileSelect(e: Event) {
+		const target = e.target as HTMLInputElement;
+		if (target.files) batchFile = target.files[0];
+	}
+
+	async function handleBatchUpload() {
+		if (!batchFile) return;
+		loading = true;
+		// Simular carga
+		await new Promise((resolve) => setTimeout(resolve, 1500));
+		loading = false;
+		closeBatchModal();
+		loadPadres();
+	}
+
 
 
 	const filteredPadres = $derived(
@@ -161,12 +188,20 @@
 			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Padres</h1>
 			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra los padres de familia del colegio</p>
 		</div>
-		<button
-			onclick={openCreateModal}
-			class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-		>
-			➕ Nuevo Padre
-		</button>
+		<div class="flex gap-3">
+			<button
+				onclick={openBatchModal}
+				class="bg-gradient-to-r from-emerald-500 to-green-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+			>
+				📤 Subir por lote
+			</button>
+			<button
+				onclick={openCreateModal}
+				class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+			>
+				➕ Nuevo Padre
+			</button>
+		</div>
 	</div>
 
 	<!-- Error Message -->
@@ -218,7 +253,7 @@
 				type="text"
 				bind:value={searchQuery}
 				placeholder="Buscar por nombre, email o usuario..."
-				class="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+				class="w-full px-4 py-3 pl-12 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
 			/>
 			<div class="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl">🔍</div>
 		</div>
@@ -361,12 +396,12 @@
 	>
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
-			class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
 			role="document"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 		>
-			<h2 class="text-2xl font-bold text-gray-900 mb-6">
+			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
 				{modalMode === 'create' ? '➕ Nuevo Padre' : '✏️ Editar Padre'}
 			</h2>
 
@@ -378,7 +413,7 @@
 				class="space-y-4"
 			>
 				<div>
-					<label for="full_name" class="block text-sm font-semibold text-gray-700 mb-2"
+					<label for="full_name" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
 						>Nombre Completo</label
 					>
 					<input
@@ -386,12 +421,12 @@
 						id="full_name"
 						bind:value={formData.full_name}
 						required
-						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+						class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 					/>
 				</div>
 
 				<div>
-					<label for="username" class="block text-sm font-semibold text-gray-700 mb-2"
+					<label for="username" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
 						>Usuario</label
 					>
 					<input
@@ -399,23 +434,23 @@
 						id="username"
 						bind:value={formData.username}
 						required
-						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+						class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 					/>
 				</div>
 
 				<div>
-					<label for="email" class="block text-sm font-semibold text-gray-700 mb-2">Email</label>
+					<label for="email" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Email</label>
 					<input
 						type="email"
 						id="email"
 						bind:value={formData.email}
 						required
-						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+						class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 					/>
 				</div>
 
 				<div>
-					<label for="password" class="block text-sm font-semibold text-gray-700 mb-2"
+					<label for="password" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
 						>Contraseña {modalMode === 'edit' ? '(dejar vacío para no cambiar)' : ''}</label
 					>
 					<input
@@ -423,7 +458,7 @@
 						id="password"
 						bind:value={formData.password}
 						required={modalMode === 'create'}
-						class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+						class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 					/>
 				</div>
 
@@ -431,7 +466,7 @@
 					<button
 						type="button"
 						onclick={closeModal}
-						class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+						class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-semibold"
 					>
 						Cancelar
 					</button>
@@ -444,6 +479,73 @@
 					</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- Mock Batch Upload Modal -->
+{#if showBatchModal}
+	<div
+		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in"
+		role="button"
+		tabindex="0"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) closeBatchModal();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') closeBatchModal();
+		}}
+	>
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
+			role="document"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+		>
+			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">📤 Subir por lote</h2>
+
+			<div class="space-y-6">
+				<div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center bg-gray-50 dark:bg-gray-700/50">
+					{#if batchFile}
+						<div class="text-emerald-500 mb-2 text-xl">📄</div>
+						<p class="text-gray-900 dark:text-white font-medium">{batchFile.name}</p>
+						<p class="text-sm text-gray-500 dark:text-gray-400">{(batchFile.size / 1024).toFixed(2)} KB</p>
+					{:else}
+						<div class="text-4xl mb-4 text-gray-400">📊</div>
+						<p class="text-gray-600 dark:text-gray-300 font-medium mb-2">Arrastra tu archivo Excel aquí</p>
+						<input
+							type="file"
+							accept=".xlsx, .xls"
+							class="hidden"
+							id="file-upload"
+							onchange={handleFileSelect}
+						/>
+						<label
+							for="file-upload"
+							class="inline-block px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors font-medium"
+						>
+							Seleccionar Archivo
+						</label>
+					{/if}
+				</div>
+
+				<div class="flex gap-3">
+					<button
+						onclick={closeBatchModal}
+						class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-semibold"
+					>
+						Cancelar
+					</button>
+					<button
+						onclick={handleBatchUpload}
+						disabled={!batchFile || loading}
+						class="flex-1 px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg hover:from-emerald-600 hover:to-green-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						{loading ? 'Procesando...' : 'Aceptar'}
+					</button>
+				</div>
+			</div>
 		</div>
 	</div>
 {/if}
@@ -463,15 +565,15 @@
 	>
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
-			class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
 			role="document"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 		>
 			<div class="text-center">
 				<div class="text-6xl mb-4">⚠️</div>
-				<h2 class="text-2xl font-bold text-gray-900 mb-4">¿Eliminar Padre?</h2>
-				<p class="text-gray-600 mb-6">
+				<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">¿Eliminar Padre?</h2>
+				<p class="text-gray-600 dark:text-gray-400 mb-6">
 					¿Estás seguro de que deseas eliminar a <strong>{padreToDelete.full_name}</strong>? Esta
 					acción no se puede deshacer.
 				</p>
@@ -479,7 +581,7 @@
 				<div class="flex gap-3">
 					<button
 						onclick={cancelDelete}
-						class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+						class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-semibold"
 					>
 						Cancelar
 					</button>

@@ -4,7 +4,7 @@
 			title: 'Gestión de Boletines',
 			description: 'Administrar calificaciones y reportes académicos',
 			icon: '📚',
-			href: '/admin/boletin-notas',
+			href: '/admin/boletines',
 			color: 'from-blue-400 to-indigo-500'
 		},
 		{

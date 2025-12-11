@@ -38,6 +38,20 @@
 		return icons[type] || '🔔';
 	}
 
+	// Obtener gradiente según el tipo de notificación
+	function getNotificationGradient(type: NotificationType): string {
+		const gradients: Record<string, string> = {
+			payment_received: 'from-teal-400 to-cyan-500', // Pagos
+			payment_pending: 'from-teal-400 to-cyan-500',
+			license_request: 'from-sky-400 to-cyan-500', // Licencias
+			student_absence: 'from-pink-500 to-rose-500', // Faltas (distinct color)
+			announcement: 'from-blue-400 to-indigo-500', // Boletines/General
+			event: 'from-cyan-400 to-blue-500', // Reuniones
+			meeting: 'from-cyan-400 to-blue-500'
+		};
+		return gradients[type] || 'from-cyan-400 to-blue-500';
+	}
+
 	// Obtener color según la categoría
 	function getCategoryColor(category: string): string {
 		const colors = {
@@ -160,7 +174,7 @@
 		transition:fly={{ x: 400, duration: 300 }}
 	>
 		<!-- Header -->
-		<div class="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 flex-shrink-0">
+		<div class="bg-gradient-to-r from-cyan-400 to-blue-500 text-white p-4 flex-shrink-0">
 			<div class="flex items-center justify-between mb-3">
 				<h2 class="text-xl font-bold">Notificaciones</h2>
 				<button
@@ -179,8 +193,8 @@
 						on:click={() => (selectedFilter = filter.value)}
 						class="px-2.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all {selectedFilter ===
 						filter.value
-							? 'bg-white text-purple-600'
-							: 'bg-white bg-opacity-90 text-purple-700 hover:bg-opacity-100'}"
+							? 'bg-white dark:bg-gray-700 text-cyan-600 dark:text-cyan-400'
+							: 'bg-white/90 dark:bg-gray-700/90 text-cyan-700 dark:text-cyan-300 hover:bg-opacity-100'}"
 					>
 						{filter.label}
 					</button>
@@ -189,10 +203,10 @@
 		</div>
 
 		<!-- Lista de notificaciones -->
-		<div class="flex-1 overflow-y-auto">
+		<div class="flex-1 overflow-y-auto p-4 bg-gray-50 dark:bg-gray-900">
 			{#if loading}
 				<div class="flex items-center justify-center h-full">
-					<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+					<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
 				</div>
 			{:else if filteredNotifications.length === 0}
 				<div class="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 p-8">
@@ -200,47 +214,53 @@
 					<p class="text-center text-gray-500 dark:text-gray-400">No hay notificaciones</p>
 				</div>
 			{:else}
-				<div class="divide-y divide-gray-100">
+				<div class="space-y-3">
 					{#each filteredNotifications as notification (notification._id)}
 						<button
 							on:click={() => handleNotificationClick(notification)}
-							class="w-full text-left p-4 hover:bg-gray-50 transition-colors {!notification.is_read
-								? 'bg-blue-50'
+							class="w-full text-left bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5 {!notification.is_read
+								? 'ring-2 ring-cyan-400 ring-opacity-50'
 								: ''}"
 						>
-							<div class="flex gap-3">
-								<!-- Icono -->
-								<div class="flex-shrink-0 text-2xl">
-									{getNotificationIcon(notification.type)}
+							<div class="flex gap-4">
+								<!-- Icono con gradiente circular -->
+								<div class="flex-shrink-0">
+									<div
+										class="w-12 h-12 rounded-full bg-gradient-to-r {getNotificationGradient(
+											notification.type
+										)} flex items-center justify-center shadow-lg"
+									>
+										<span class="text-2xl">{getNotificationIcon(notification.type)}</span>
+									</div>
 								</div>
 
 								<!-- Contenido -->
 								<div class="flex-1 min-w-0">
 									<div class="flex items-start justify-between gap-2 mb-1">
 										<h3
-											class="font-semibold text-gray-900 text-sm {!notification.is_read
-												? 'font-bold'
+											class="font-bold text-gray-900 dark:text-white text-base {!notification.is_read
+												? 'text-cyan-600 dark:text-cyan-400'
 												: ''}"
 										>
 											{notification.title}
 										</h3>
 										{#if !notification.is_read}
-											<span class="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1"></span>
+											<span class="w-2.5 h-2.5 bg-cyan-500 rounded-full flex-shrink-0 mt-1.5 animate-pulse"></span>
 										{/if}
 									</div>
 
-									<p class="text-sm text-gray-600 line-clamp-2 mb-2">
+									<p class="text-sm text-gray-600 dark:text-gray-300 mb-2 line-clamp-2">
 										{notification.message}
 									</p>
 
-									<div class="flex items-center gap-2">
-										<span class="text-xs text-gray-400">
+									<div class="flex items-center gap-2 flex-wrap">
+										<span class="text-xs text-gray-500 dark:text-gray-400 font-medium">
 											{formatRelativeTime(notification.created_at)}
 										</span>
 
 										<!-- Badge de categoría -->
 										<span
-											class="text-xs px-2 py-0.5 rounded-full border {getCategoryColor(
+											class="text-xs px-2.5 py-1 rounded-full font-semibold {getCategoryColor(
 												notification.category
 											)}"
 										>
@@ -257,10 +277,10 @@
 
 		<!-- Footer -->
 		{#if unreadCount > 0}
-			<div class="border-t border-gray-200 p-4 flex-shrink-0 bg-gray-50">
+			<div class="border-t border-gray-200 dark:border-gray-700 p-4 flex-shrink-0 bg-gray-50 dark:bg-gray-800">
 				<button
 					on:click={markAllAsRead}
-					class="w-full bg-purple-600 text-white py-2.5 px-4 rounded-lg font-medium hover:bg-purple-700 transition-colors"
+					class="w-full bg-gradient-to-r from-cyan-400 to-blue-500 text-white py-2.5 px-4 rounded-lg font-medium hover:from-cyan-500 hover:to-blue-600 transition-all"
 				>
 					Marcar todas como leídas ({unreadCount})
 				</button>
@@ -282,6 +302,7 @@
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
+		line-clamp: 2;
 		overflow: hidden;
 	}
 </style>
