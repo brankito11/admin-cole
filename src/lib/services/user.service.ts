@@ -1,31 +1,12 @@
-import type { GetUsersResponse } from '$lib/interfaces';
-
-const API_BASE_URL = 'https://admin-cole-2.onrender.com/api';
+import { apiCole } from '$lib/config/apiCole.config';
+import type { GetUsersResponse, User } from '$lib/interfaces';
 
 class UserService {
-	// Obtener todos los usuarios (requiere token de administrador)
-	async getUsers(token: string, skip: number = 0, limit: number = 100): Promise<GetUsersResponse> {
+	// Obtener todos los usuarios (apiCole maneja el token)
+	async getUsers(skip: number = 0, limit: number = 100): Promise<User[]> {
 		try {
-			console.log('👥 Get Users request');
-
-			const response = await fetch(`${API_BASE_URL}/admin/users?skip=${skip}&limit=${limit}`, {
-				method: 'GET',
-				headers: {
-					Accept: 'application/json',
-					Authorization: `Bearer ${token}`
-				}
-			});
-
-			console.log('📡 Get Users response:', response.status);
-
-			if (!response.ok) {
-				const errorText = await response.text();
-				console.error('❌ Get Users error:', errorText);
-				throw new Error(`Error ${response.status}: ${errorText || 'Error al obtener usuarios'}`);
-			}
-
-			const data = await response.json();
-			console.log('✅ Usuarios obtenidos:', data.length);
+			// apiCole.get devuelve directamente la respuesta (response.json())
+			const data = await apiCole.get<User[]>(`/users/?skip=${skip}&limit=${limit}`);
 			return data;
 		} catch (error) {
 			console.error('💥 Get Users exception:', error);
@@ -33,87 +14,36 @@ class UserService {
 		}
 	}
 
-	// Eliminar usuario (requiere token de administrador)
-	async deleteUser(token: string, userId: string): Promise<void> {
+	// Eliminar usuario
+	async deleteUser(userId: string): Promise<void> {
 		try {
-			console.log('🗑️ Delete User request:', userId);
-
-			const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
-				method: 'DELETE',
-				headers: {
-					Authorization: `Bearer ${token}`
-				}
-			});
-
-			console.log('📡 Delete User response:', response.status);
-
-			if (!response.ok) {
-				const errorText = await response.text();
-				console.error('❌ Delete User error:', errorText);
-				throw new Error(`Error ${response.status}: ${errorText || 'Error al eliminar usuario'}`);
-			}
-
-			console.log('✅ Usuario eliminado exitosamente');
+			await apiCole.delete(`/users/${userId}`);
 		} catch (error) {
 			console.error('💥 Delete User exception:', error);
 			throw error;
 		}
 	}
 
-	// Actualizar usuario (requiere token de administrador)
-	async updateUser(token: string, userId: string, userData: any): Promise<any> {
+	// Actualizar usuario
+	async updateUser(userId: string, userData: any): Promise<any> {
 		try {
-			console.log('✏️ Update User request:', userId);
-
-			const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
-				method: 'PUT',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify(userData)
-			});
-
-			console.log('📡 Update User response:', response.status);
-
-			if (!response.ok) {
-				const errorText = await response.text();
-				console.error('❌ Update User error:', errorText);
-				throw new Error(`Error ${response.status}: ${errorText || 'Error al actualizar usuario'}`);
-			}
-
-			return await response.json();
+			return await apiCole.put(`/users/${userId}`, userData);
 		} catch (error) {
 			console.error('💥 Update User exception:', error);
 			throw error;
 		}
 	}
+
 	// Importar padres desde Excel
-	// Endpoint: POST /api/users/import-padres
-	// Columnas del Excel: Email, Password, Nombre, Apellido, Teléfono
-	async importPadres(token: string, file: File): Promise<any> {
+	async importPadres(file: File): Promise<any> {
 		try {
 			console.log('📂 Importando Padres desde Excel...');
 			const formData = new FormData();
 			formData.append('file', file);
 
-			const response = await fetch(`${API_BASE_URL}/api/users/import-padres`, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`
-					// NO incluir Content-Type, fetch lo establece automáticamente con boundary para multipart/form-data
-				},
-				body: formData
-			});
+			// apiCole maneja autmáticamente el Content-Type para FormData
+			const result = await apiCole.post('/users/import-padres', formData, { timeout: 120000 });
 
-			console.log('📡 Import response:', response.status);
-
-			if (!response.ok) {
-				const errorText = await response.text();
-				throw new Error(`Error ${response.status}: ${errorText}`);
-			}
-
-			const result = await response.json();
 			console.log('✅ Padres importados exitosamente:', result);
 			return result;
 		} catch (error) {
@@ -123,28 +53,13 @@ class UserService {
 	}
 
 	// Eliminar padres masivamente desde Excel
-	async bulkDeletePadres(token: string, file: File): Promise<any> {
+	async bulkDeletePadres(file: File): Promise<any> {
 		try {
 			console.log('🗑️ Bulk Delete Padres request');
 			const formData = new FormData();
 			formData.append('file', file);
 
-			const response = await fetch(`${API_BASE_URL}/users/bulk-delete-padres`, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`
-				},
-				body: formData
-			});
-
-			console.log('📡 Bulk Delete response:', response.status);
-
-			if (!response.ok) {
-				const errorText = await response.text();
-				throw new Error(`Error ${response.status}: ${errorText}`);
-			}
-
-			return await response.json();
+			return await apiCole.post('/users/bulk-delete-padres', formData);
 		} catch (error) {
 			console.error('💥 Bulk Delete exception:', error);
 			throw error;

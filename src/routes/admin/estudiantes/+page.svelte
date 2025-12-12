@@ -2,9 +2,12 @@
 	import { onMount } from 'svelte';
 	import { studentService } from '$lib/services/student.service';
 	import { userService } from '$lib/services/user.service';
+	import { cursoService } from '$lib/services/curso.service';
 
 	let showModal = false;
 	let editingStudent: any = null;
+	let courses: any[] = [];
+	let courseMap: any = {};
 	let showBatchModal = false;
 	let batchFile: File | null = null;
 	let loading = false;
@@ -31,20 +34,72 @@
 	let selectedShift = '';
 	let selectedSection = '';
 
-	const levels: Record<string, string[]> = {
-		'Inicial': ['Pre-Kinder', 'Kinder'],
-		'Primaria': ['1ro de Primaria', '2do de Primaria', '3ro de Primaria', '4to de Primaria', '5to de Primaria', '6to de Primaria'],
-		'Secundaria': ['1er Año', '2do Año', '3er Año', '4to Año', '5to Año', '6to Año']
-	};
+	// Dynamic Filter Data
+	let levels: Record<string, string[]> = {};
+	
+	// These will be derived reactive variables based on selection
+	$: availableShifts = getAvailableShifts(selectedGrade);
+	$: availableSections = getAvailableSections(selectedGrade, selectedShift);
 
-	const shifts = ['Mañana', 'Tarde'];
-	const sections = ['A', 'B'];
+	function getAvailableShifts(grade: string) {
+		if (!grade) return [];
+		const relevantCourses = courses.filter(c => c.nombre === grade);
+		return [...new Set(relevantCourses.map(c => c.turno))].sort();
+	}
+
+	function getAvailableSections(grade: string, shift: string) {
+		if (!grade) return [];
+		let relevantCourses = courses.filter(c => c.nombre === grade);
+		if (shift) {
+			relevantCourses = relevantCourses.filter(c => c.turno === shift);
+		}
+		return [...new Set(relevantCourses.map(c => c.paralelo))].sort();
+	}
 
 	let allStudents: any[] = [];
 
 	onMount(() => {
-		loadStudents();
+		initData();
 	});
+
+	async function initData() {
+		isLoadingData = true;
+		try {
+			const res = await cursoService.getAll(0, 100);
+			courses = Array.isArray(res) ? res : (res.data || []);
+			
+			// Build Course Map and Dynamic Levels
+			const newLevels: Record<string, Set<string>> = {};
+			
+			courses.forEach(c => {
+				courseMap[c._id || c.id] = c;
+				
+				// Populate Levels
+				const niv = c.nivel || 'Otros';
+				if (!newLevels[niv]) newLevels[niv] = new Set();
+				newLevels[niv].add(c.nombre);
+			});
+			
+			// Convert Sets to Arrays and sort
+			levels = {};
+			// Enforce order if keys exist
+			['Inicial', 'Primaria', 'Secundaria'].forEach(key => {
+				if (newLevels[key]) {
+					levels[key] = Array.from(newLevels[key]).sort(); // Could improve with custom sort for '1ro' vs 'Pre'
+					delete newLevels[key];
+				}
+			});
+			// Add remaining
+			Object.keys(newLevels).forEach(key => {
+				levels[key] = Array.from(newLevels[key]).sort();
+			});
+
+			await loadStudents();
+		} catch (e) {
+			console.error("Error initializing data", e);
+			await loadStudents();
+		}
+	}
 
 	async function loadStudents() {
 		try {
@@ -56,17 +111,22 @@
 			// If response is array directly:
 			const rawStudents = Array.isArray(response) ? response : (response.data || []);
 			
-			allStudents = rawStudents.map((s: any) => ({
-				id: s.id || s._id,
-				name: s.name || `${s.nombres} ${s.apellidos}`,
-				grade: s.grade || s.curso_id || 'Sin Grado', // Fallback
-				section: s.section || 'A', // Fallback
-				shift: s.shift || 'Mañana', // Fallback
-				parent: s.parent || 'No asignado',
-				email: s.email || '',
-				phone: s.phone || '',
-				status: s.status || s.estado || 'Activo'
-			}));
+			allStudents = rawStudents.map((s: any) => {
+				const c = courseMap[s.curso_id];
+				return {
+					id: s.id || s._id,
+					rude: s.rude,
+					curso_id: s.curso_id,
+					name: s.name || `${s.nombres} ${s.apellidos}`,
+					grade: c ? c.nombre : (s.grade || 'Sin Grado'),
+					section: c ? c.paralelo : (s.section || 'A'),
+					shift: s.shift || 'Mañana', // Fallback
+					parent: s.parent || 'No asignado',
+					email: s.email || '',
+					phone: s.phone || '',
+					status: s.status || s.estado || 'Activo'
+				};
+			});
 		} catch (error) {
 			console.error('Error loading students:', error);
 			// Keep mock data if fetch fails for dev purposes or empty
@@ -114,10 +174,10 @@
 			const { nombres, apellidos } = splitName(form.name);
 			
 			const payload = {
-				rude: 0, // Default as per requirement
+				rude: editingStudent ? editingStudent.rude : 0, 
 				nombres: nombres,
 				apellidos: apellidos || '.', 
-				curso_id: form.grade, // Using Grade name as ID for now
+				curso_id: form.grade, // ID from Select
 				estado: form.status.toUpperCase()
 			};
 
@@ -143,7 +203,7 @@
 		editingStudent = null;
 		form = {
 			name: '',
-			grade: 'Tercer Grado',
+			grade: courses.length > 0 ? courses[0]._id : '',
 			section: '',
 			parent: '',
 			email: '',
@@ -157,7 +217,7 @@
 		editingStudent = student;
 		form = {
 			name: student.name,
-			grade: student.grade,
+			grade: student.curso_id,
 			section: student.section,
 			parent: student.parent,
 			email: student.email,
@@ -248,13 +308,19 @@
 		if (!batchFile) return;
 		loading = true;
 		try {
-			// Simulate upload
-			await new Promise(resolve => setTimeout(resolve, 1500));
-			alert('Archivo procesado exitosamente');
+			// Call the real import API
+			const result = await studentService.importStudents(batchFile);
+			console.log('✅ Estudiantes importados:', result);
+			
+			alert(`Archivo procesado exitosamente. ${result.created || 0} estudiante(s) importado(s).`);
 			closeBatchModal();
+			
+			// Reload students list to show imported students
+			await loadStudents();
 		} catch (error) {
-			console.error('Error uploading:', error);
-			alert('Error al subir el archivo');
+			console.error('❌ Error uploading:', error);
+			const errorMessage = error instanceof Error ? error.message : 'Error desconocido al subir el archivo';
+			alert(`Error al subir el archivo: ${errorMessage}`);
 		} finally {
 			loading = false;
 		}
@@ -337,7 +403,8 @@
 								Turno
 							</h3>
 							<div class="flex gap-3">
-								{#each shifts as shift}
+							<div class="flex gap-3">
+								{#each availableShifts as shift}
 									<button
 										on:click={() => selectShift(shift)}
 										class="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
@@ -349,6 +416,7 @@
 									</button>
 								{/each}
 							</div>
+							</div>
 						</div>
 
 						<!-- Section Scope -->
@@ -359,7 +427,8 @@
 									Paralelo
 								</h3>
 								<div class="flex gap-3">
-									{#each sections as section}
+								<div class="flex gap-3">
+									{#each availableSections as section}
 										<button
 											on:click={() => selectSection(section)}
 											class="w-14 h-12 rounded-xl text-lg font-bold transition-all flex items-center justify-center border-2
@@ -370,6 +439,7 @@
 											{section}
 										</button>
 									{/each}
+								</div>
 								</div>
 							</div>
 						{/if}
@@ -595,20 +665,11 @@
 							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 							bind:value={form.grade}
 						>
-							<option>Pre-Kinder</option>
-							<option>Kinder</option>
-							<option>1ro de Primaria</option>
-							<option>2do de Primaria</option>
-							<option>3ro de Primaria</option>
-							<option>4to de Primaria</option>
-							<option>5to de Primaria</option>
-							<option>6to de Primaria</option>
-							<option>1er Año</option>
-							<option>2do Año</option>
-							<option>3er Año</option>
-							<option>4to Año</option>
-							<option>5to Año</option>
-							<option>6to Año</option>
+							{#each courses as course}
+								<option value={course._id}>
+									{course.nombre} {course.paralelo ? `- ${course.paralelo}` : ''}
+								</option>
+							{/each}
 						</select>
 					</div>
 					<div>

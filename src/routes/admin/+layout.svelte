@@ -1,10 +1,8 @@
 <script lang="ts">
 	import { Sidebar, Navbar } from '$lib/components';
 
-	let { children } = $props();
-
-	let isSidebarOpen = $state(false);
-	let isSidebarCollapsed = $state(false);
+	let isSidebarOpen = false;
+	let isSidebarCollapsed = false;
 
 	const adminMenuItems = [
 		{ href: '/admin/users', label: 'Cuentas', icon: '👥' },
@@ -43,7 +41,7 @@
 
 		<main class="flex-1 overflow-y-auto p-4 lg:p-8">
 			<div class="max-w-7xl mx-auto">
-				{@render children()}
+				<slot />
 			</div>
 		</main>
 	</div>

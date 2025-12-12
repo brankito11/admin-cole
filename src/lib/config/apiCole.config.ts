@@ -7,6 +7,7 @@ import { AUTH_TOKEN_KEY, USER_DATA_KEY } from '$lib/constants';
 interface RequestOptions {
 	requireAuth?: boolean;
 	customHeaders?: HeadersInit;
+	timeout?: number;
 }
 
 class ApiCole {
@@ -42,7 +43,8 @@ class ApiCole {
 		options: RequestOptions = {}
 	): Promise<T> {
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
+		const timeoutDuration = options.timeout !== undefined ? options.timeout : API_CONFIG.TIMEOUT;
+		const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
 
 		try {
 			const headers = this.buildHeaders(options);
@@ -52,7 +54,9 @@ class ApiCole {
 				delete headers['Content-Type'];
 			}
 
-			const response = await fetch(`${API_CONFIG.BASE_URL}/api${endpoint}`, {
+			const fullUrl = `${API_CONFIG.BASE_URL}/api${endpoint}`;
+			console.log(`📡 Fetching: ${method} ${fullUrl}`);
+			const response = await fetch(fullUrl, {
 				method,
 				headers,
 				body: isFormData ? (data as FormData) : data ? JSON.stringify(data) : undefined,

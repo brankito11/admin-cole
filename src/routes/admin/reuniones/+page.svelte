@@ -35,32 +35,14 @@
 		loading = true;
 		error = '';
 		try {
-			const token = localStorage.getItem(AUTH_TOKEN_KEY);
-			if (!token) {
-				error = 'No se encontró el token de autenticación. Por favor, inicia sesión nuevamente.';
-				loading = false;
-				setTimeout(() => {
-					window.location.href = '/auth/sign-in';
-				}, 2000);
-				return;
-			}
-
-			const response = await reunionService.getAllReuniones(token);
-			reuniones = response || [];
+			// Removed manual token check, apiCole handles it
+			const response = await reunionService.getAllReuniones();
+			// Handle potentially different response structures
+			const data = (response as any).data || response;
+			reuniones = Array.isArray(data) ? data : [];
 		} catch (err: any) {
 			console.error('Error loading reuniones:', err);
-
-			// Check if it's an authentication error (401)
-			if (err.message && (err.message.includes('401') || err.message.includes('credenciales'))) {
-				error = 'Sesión expirada. Redirigiendo al login...';
-				localStorage.removeItem(AUTH_TOKEN_KEY);
-				setTimeout(() => {
-					window.location.href = '/auth/sign-in';
-				}, 2000);
-			} else {
-				error =
-					err.message || 'Error al cargar reuniones. Verifica que el servidor esté funcionando.';
-			}
+			error = err.message || 'Error al cargar reuniones.';
 			reuniones = [];
 		} finally {
 			loading = false;
@@ -102,12 +84,6 @@
 		loading = true;
 		error = '';
 		try {
-			const token = localStorage.getItem(AUTH_TOKEN_KEY);
-			if (!token) {
-				error = 'No se encontró el token de autenticación';
-				return;
-			}
-
 			// Prepare data with ISO format for fecha
 			const dataToSend = {
 				...formData,
@@ -115,13 +91,14 @@
 			};
 
 			if (modalMode === 'create') {
-				await reunionService.createReunion(token, dataToSend as ReunionCreate);
+				await reunionService.createReunion(dataToSend as ReunionCreate);
 			} else if (selectedReunion) {
-				await reunionService.updateReunion(token, selectedReunion._id, dataToSend as ReunionUpdate);
+				await reunionService.updateReunion(selectedReunion._id, dataToSend as ReunionUpdate);
 			}
 			closeModal();
 			await loadReuniones();
 		} catch (err: any) {
+			console.error("Submit error", err);
 			error = err.message || 'Error al guardar reunión';
 		} finally {
 			loading = false;
@@ -138,13 +115,7 @@
 		loading = true;
 		error = '';
 		try {
-			const token = localStorage.getItem(AUTH_TOKEN_KEY);
-			if (!token) {
-				error = 'No se encontró el token de autenticación';
-				return;
-			}
-
-			await reunionService.deleteReunion(token, reunionToDelete._id);
+			await reunionService.deleteReunion(reunionToDelete._id);
 			showDeleteConfirm = false;
 			reunionToDelete = null;
 			await loadReuniones();
