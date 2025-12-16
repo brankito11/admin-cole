@@ -30,7 +30,7 @@ class AuthService {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
-					'Accept': 'application/json'
+					Accept: 'application/json'
 				},
 				body: formData.toString()
 			});
@@ -64,7 +64,7 @@ class AuthService {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'Accept': 'application/json'
+					Accept: 'application/json'
 				},
 				body: JSON.stringify(credentials)
 			});
@@ -94,8 +94,8 @@ class AuthService {
 			const response = await fetch(`${API_BASE_URL}/auth/me`, {
 				method: 'GET',
 				headers: {
-					'Accept': 'application/json',
-					'Authorization': `Bearer ${token}`
+					Accept: 'application/json',
+					Authorization: `Bearer ${token}`
 				}
 			});
 
@@ -125,8 +125,8 @@ class AuthService {
 				method: 'PUT',
 				headers: {
 					'Content-Type': 'application/json',
-					'Accept': 'application/json',
-					'Authorization': `Bearer ${token}`
+					Accept: 'application/json',
+					Authorization: `Bearer ${token}`
 				},
 				body: JSON.stringify(data)
 			});
@@ -160,8 +160,8 @@ class AuthService {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'Accept': 'application/json',
-					'Authorization': `Bearer ${token}`
+					Accept: 'application/json',
+					Authorization: `Bearer ${token}`
 				},
 				body: JSON.stringify(credentials)
 			});
@@ -192,8 +192,8 @@ class AuthService {
 				method: 'PUT',
 				headers: {
 					'Content-Type': 'application/json',
-					'Accept': 'application/json',
-					'Authorization': `Bearer ${token}`
+					Accept: 'application/json',
+					Authorization: `Bearer ${token}`
 				},
 				body: JSON.stringify(passwordData)
 			});

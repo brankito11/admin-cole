@@ -13,7 +13,7 @@ const getEnvVariable = (key: string, fallback?: string): string => {
 };
 
 // Hardcoded for stability - .env file appears corrupted
-const API_BASE_URL = 'https://admin-cole.onrender.com';
+const API_BASE_URL = 'https://admin-cole-2.onrender.com';
 
 export const defaultHeaders: HeadersInit = {
 	'Content-Type': 'application/json'

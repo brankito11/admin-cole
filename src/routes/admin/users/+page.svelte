@@ -4,7 +4,13 @@
 	import { userService } from '$lib/services/user.service';
 	import { hijoService } from '$lib/services/hijo.service';
 	import { auth } from '$lib/stores/auth';
-	import type { User, CreateAdminCredentials, Hijo, HijoCreateData, RegisterCredentials } from '$lib/interfaces';
+	import type {
+		User,
+		CreateAdminCredentials,
+		Hijo,
+		HijoCreateData,
+		RegisterCredentials
+	} from '$lib/interfaces';
 	import { fade, slide } from 'svelte/transition';
 
 	let users: User[] = [];
@@ -20,17 +26,17 @@
 	let searchTerm = '';
 	let filterRole = 'Todos';
 
-    async function handleCreateAdmin() {
-        // if (!$auth?.token) return; // Handled by service
+	async function handleCreateAdmin() {
+		// if (!$auth?.token) return; // Handled by service
 		creatingAdmin = true;
 		try {
 			// Ensure we pass a string, or handle it if we want authService to deal with it.
-            // If authService.createAdmin expects string, we must provide it.
-            const token = $auth?.token || '';
-            if (!token) {
-                alert('No hay sesión activa');
-                return;
-            }
+			// If authService.createAdmin expects string, we must provide it.
+			const token = $auth?.token || '';
+			if (!token) {
+				alert('No hay sesión activa');
+				return;
+			}
 			await authService.createAdmin(token, newAdmin);
 			alert('Administrador creado exitosamente');
 			showModal = false;
@@ -85,26 +91,29 @@
 
 	function downloadTemplate() {
 		// Create a simple CSV or handle download
-		const csvContent = "data:text/csv;charset=utf-8,Email,Password,Nombre,Apellido,Telefono\nejemplo@correo.com,123456,Juan,Perez,70000000";
+		const csvContent =
+			'data:text/csv;charset=utf-8,Email,Password,Nombre,Apellido,Telefono\nejemplo@correo.com,123456,Juan,Perez,70000000';
 		const encodedUri = encodeURI(csvContent);
-		const link = document.createElement("a");
-		link.setAttribute("href", encodedUri);
-		link.setAttribute("download", "plantilla_padres.csv"); // Or .xlsx if we could generate it 
+		const link = document.createElement('a');
+		link.setAttribute('href', encodedUri);
+		link.setAttribute('download', 'plantilla_padres.csv'); // Or .xlsx if we could generate it
 		// Since backend expects Excel, maybe we should point to a static file or just warn
-		// For now simple CSV might not work if backend strictly parses Excel. 
+		// For now simple CSV might not work if backend strictly parses Excel.
 		// Better to just alert "Formato esperado: ..." if we can't generate Excel on frontend easily without lib.
 		// Re-reading service: "importPadres ... Columnas del Excel: Email, Password..."
 		// Let's assume user knows how to make excel for now, but I'll add the button layout.
 		// Actually, I can construct a dummy link or alert the columns.
 		// alert("Por favor crea un Excel con las columnas: Email, Password, Nombre, Apellido, Telefono");
-		console.log("Por favor crea un Excel con las columnas: Email, Password, Nombre, Apellido, Telefono");
+		console.log(
+			'Por favor crea un Excel con las columnas: Email, Password, Nombre, Apellido, Telefono'
+		);
 	}
 
 	async function handleBatchUpload() {
 		if (!batchFile) return;
 		// Removed manual auth check to rely on service/apiCole which uses localStorage
 		// if (!$auth?.token) { ... }
-		
+
 		loadingBatch = true;
 		try {
 			await userService.importPadres(batchFile);
@@ -116,13 +125,13 @@
 		} catch (e: any) {
 			console.error('Error importing:', e);
 			// Changed to console error to avoid freezing, maybe set a UI error state
-			// alert('Error al importar: ' + e.message); 
+			// alert('Error al importar: ' + e.message);
 		} finally {
 			loadingBatch = false;
 		}
 	}
 
-    // ... (rest of the file content)
+	// ... (rest of the file content)
 
 	// ... (rest of the file content)
 
@@ -169,8 +178,9 @@
 			user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
 			(user.nombre && user.nombre.toLowerCase().includes(searchTerm.toLowerCase())) ||
 			(user.apellido && user.apellido.toLowerCase().includes(searchTerm.toLowerCase()));
-		
-		const matchesRole = filterRole === 'Todos' || 
+
+		const matchesRole =
+			filterRole === 'Todos' ||
 			(filterRole === 'Admin' && user.role === 'ADMIN') ||
 			(filterRole === 'User' && user.role !== 'ADMIN' && user.role !== 'PADRE') ||
 			(filterRole === 'Padre' && user.role === 'PADRE');
@@ -189,27 +199,28 @@
 		error = null;
 		try {
 			const res = await userService.getUsers();
-			console.log('Users response:', res);
+			console.log(`Users loaded: ${Array.isArray(res) ? res.length : res?.data?.length || 0}`);
 			// Safely handle if response is array or object with data
 			// Safely handle if response is array or object with data
 			// Cast to any to access .data property if it exists, or use directly if array
 			const resAny = res as any;
-			users = Array.isArray(res) ? res : (resAny.data || []);
+			users = Array.isArray(res) ? res : resAny.data || [];
 		} catch (e) {
-			error = 'Error al cargar usuarios. Asegúrate de tener permisos de administrador.';
-			console.error(e);
+			error = `Error al cargar usuarios: ${e.message || e}`;
+			console.error('Error loading users:', e.message || 'Unknown error');
 		} finally {
 			loading = false;
 		}
 	}
 
 	async function handleDelete(userId: string) {
-		if (!confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.')) return;
+		if (!confirm('¿Estás seguro de eliminar este usuario? Esta acción no se puede deshacer.'))
+			return;
 		// if (!$auth?.token) return;
 
 		try {
 			await userService.deleteUser(userId);
-			users = users.filter(u => u._id !== userId);
+			users = users.filter((u) => u._id !== userId);
 		} catch (e) {
 			alert('Error al eliminar usuario');
 			console.error(e);
@@ -231,38 +242,47 @@
 		try {
 			// Register returns the User object
 			const createdUser = await authService.register(newParent);
-			
+
 			alert('Padre registrado exitosamente. Ahora puede agregar sus hijos.');
 			showParentModal = false;
 			newParent = { email: '', username: '', password: '', nombre: '', apellido: '' };
-			
+
 			// Force refresh users
-			if (true) { // always try reload, apiCole handles auth
+			if (true) {
+				// always try reload, apiCole handles auth
 				users = await userService.getUsers();
 			}
 
-            // Ensure the new user is found and visible
-            filterRole = 'Todos'; 
-            searchTerm = createdUser.username; // Auto search for the new user
+			// Ensure the new user is found and visible
+			filterRole = 'Todos';
+			searchTerm = createdUser.username; // Auto search for the new user
 
-			const parentUser = users.find(u => u.username === createdUser.username) || createdUser;
-			
+			const parentUser = users.find((u) => u.username === createdUser.username) || createdUser;
+
 			// Immediately open child modal
 			if (parentUser) {
 				openChildModal(parentUser as User);
 			}
-
 		} catch (e) {
 			console.error(e);
 			const msg = e instanceof Error ? e.message : 'Error desconocido';
-			
+
 			// Catch "User already exists" type errors (adjust string matching as needed based on backend)
-			if (msg.includes('exist') || msg.includes('registrado') || msg.includes('400') || msg.includes('409')) {
-				alert(`El usuario ya estaba registrado. Abriendo gestión de hijos para: ${newParent.username}`);
-				
+			if (
+				msg.includes('exist') ||
+				msg.includes('registrado') ||
+				msg.includes('400') ||
+				msg.includes('409')
+			) {
+				alert(
+					`El usuario ya estaba registrado. Abriendo gestión de hijos para: ${newParent.username}`
+				);
+
 				// Try to find the user in the existing list
-				const existingUser = users.find(u => u.username === newParent.username || u.email === newParent.email);
-				
+				const existingUser = users.find(
+					(u) => u.username === newParent.username || u.email === newParent.email
+				);
+
 				if (existingUser) {
 					// Clean up UI
 					showParentModal = false;
@@ -272,20 +292,22 @@
 					openChildModal(existingUser);
 					return;
 				} else {
-                    // Try to reload users then find
-                    await loadUsers();
-                    const reloadedUser = users.find(u => u.username === newParent.username || u.email === newParent.email);
-                    if (reloadedUser) {
-                        showParentModal = false;
-                        newParent = { email: '', username: '', password: '', nombre: '', apellido: '' };
-                        filterRole = 'Todos';
-                        searchTerm = reloadedUser.username;
-                        openChildModal(reloadedUser);
-                        return;
-                    }
-                }
+					// Try to reload users then find
+					await loadUsers();
+					const reloadedUser = users.find(
+						(u) => u.username === newParent.username || u.email === newParent.email
+					);
+					if (reloadedUser) {
+						showParentModal = false;
+						newParent = { email: '', username: '', password: '', nombre: '', apellido: '' };
+						filterRole = 'Todos';
+						searchTerm = reloadedUser.username;
+						openChildModal(reloadedUser);
+						return;
+					}
+				}
 			}
-			
+
 			alert('Error al registrar padre: ' + msg);
 		} finally {
 			creatingParent = false;
@@ -319,27 +341,27 @@
 		addingChild = true;
 		try {
 			// Add padre_id to the payload
-			const childData = { 
-                ...newChild, 
-                padre_id: selectedParent._id,
-                // Ensure date is valid for backend (if it expects standard YYYY-MM-DD it's fine, but let's be safe if it needs ISO)
-                // Actually the interface says string. Date input gives YYYY-MM-DD which is standard.
-                // However, I will log the data just in case.
-            };
-            console.log('Sending child data:', childData);
+			const childData = {
+				...newChild,
+				padre_id: selectedParent._id
+				// Ensure date is valid for backend (if it expects standard YYYY-MM-DD it's fine, but let's be safe if it needs ISO)
+				// Actually the interface says string. Date input gives YYYY-MM-DD which is standard.
+				// However, I will log the data just in case.
+			};
+			console.log('Sending child data:', childData);
 
 			await hijoService.createHijo(childData);
-			
+
 			// Refresh list
 			await loadParentChildren(selectedParent._id);
-			
+
 			// Reset form
 			newChild = { nombre: '', apellido: '', fecha_nacimiento: '', grado: '', curso: '' };
 			alert('Hijo agregado exitosamente');
 		} catch (e) {
 			console.error(e);
-            // Show specific error message
-            const msg = e instanceof Error ? e.message : 'Error desconocido';
+			// Show specific error message
+			const msg = e instanceof Error ? e.message : 'Error desconocido';
 			alert('Error al agregar hijo: ' + msg);
 		} finally {
 			addingChild = false;
@@ -360,8 +382,10 @@
 	}
 
 	function getRoleStyle(role: string) {
-		if (role === 'ADMIN') return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700';
-		if (role === 'PADRE') return 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-200 dark:border-indigo-700';
+		if (role === 'ADMIN')
+			return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700';
+		if (role === 'PADRE')
+			return 'bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-900 dark:text-indigo-200 dark:border-indigo-700';
 		return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700';
 	}
 </script>
@@ -370,7 +394,9 @@
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Usuarios</h1>
-			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra los usuarios y asigna hijos a los padres</p>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">
+				Administra los usuarios y asigna hijos a los padres
+			</p>
 		</div>
 		<div class="flex gap-4">
 			<button
@@ -400,27 +426,40 @@
 	<!-- Batch Upload Modal -->
 	{#if showBatchModal}
 		<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-			<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up">
-				<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">📤 Subir Padres por lote</h2>
+			<div
+				class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
+			>
+				<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+					📤 Subir Padres por lote
+				</h2>
 
 				<div class="space-y-6">
-					<div 
-						role="region" 
+					<div
+						role="region"
 						aria-label="Zona de carga de archivos"
 						on:dragover={handleDragOver}
 						on:dragleave={handleDragLeave}
 						on:drop={handleDrop}
-						class="border-2 border-dashed transition-colors duration-200 rounded-xl p-8 text-center bg-gray-50 dark:bg-gray-700/50 
-						{isDragging ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10' : 'border-gray-300 dark:border-gray-600'}"
+						class="border-2 border-dashed transition-colors duration-200 rounded-xl p-8 text-center bg-gray-50 dark:bg-gray-700/50
+						{isDragging
+							? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10'
+							: 'border-gray-300 dark:border-gray-600'}"
 					>
 						{#if batchFile}
 							<div class="text-emerald-500 mb-2 text-xl">📄</div>
 							<p class="text-gray-900 dark:text-white font-medium">{batchFile.name}</p>
-							<p class="text-sm text-gray-500 dark:text-gray-400">{(batchFile.size / 1024).toFixed(2)} KB</p>
-							<button on:click={() => batchFile = null} class="mt-2 text-red-500 text-sm hover:underline">Eliminar</button>
+							<p class="text-sm text-gray-500 dark:text-gray-400">
+								{(batchFile.size / 1024).toFixed(2)} KB
+							</p>
+							<button
+								on:click={() => (batchFile = null)}
+								class="mt-2 text-red-500 text-sm hover:underline">Eliminar</button
+							>
 						{:else}
 							<div class="text-4xl mb-4 text-gray-400">📊</div>
-							<p class="text-gray-600 dark:text-gray-300 font-medium mb-2">Arrastra tu archivo Excel aquí</p>
+							<p class="text-gray-600 dark:text-gray-300 font-medium mb-2">
+								Arrastra tu archivo Excel aquí
+							</p>
 							<input
 								type="file"
 								accept=".xlsx, .xls"
@@ -435,7 +474,10 @@
 								Seleccionar Archivo
 							</label>
 							<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
-								<button on:click={downloadTemplate} class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 underline">
+								<button
+									on:click={downloadTemplate}
+									class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 underline"
+								>
 									¿No tienes el archivo? Ver formato requerido
 								</button>
 							</div>
@@ -462,7 +504,6 @@
 		</div>
 	{/if}
 
-
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
@@ -487,9 +528,7 @@
 			</div>
 		</div>
 
-		<div
-			class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg"
-		>
+		<div class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#F0E6D2] text-sm font-medium">Padres</p>
@@ -503,10 +542,15 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
+	>
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 			<div>
-				<label for="search-users" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
+				<label
+					for="search-users"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label
+				>
 				<input
 					id="search-users"
 					type="text"
@@ -516,7 +560,11 @@
 				/>
 			</div>
 			<div>
-				<label for="filter-role" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Rol</label>
+				<label
+					for="filter-role"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Filtrar por Rol</label
+				>
 				<select
 					id="filter-role"
 					bind:value={filterRole}
@@ -532,7 +580,9 @@
 	</div>
 
 	<!-- Users Table -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+	>
 		{#if loading}
 			<div class="p-8 text-center text-gray-500 dark:text-gray-400">Cargando usuarios...</div>
 		{:else if error}
@@ -566,7 +616,10 @@
 					</thead>
 					<tbody class="divide-y divide-gray-200 dark:divide-gray-700">
 						{#each filteredUsers as user (user._id)}
-							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors" transition:slide>
+							<tr
+								class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+								transition:slide
+							>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<div class="flex items-center">
 										<div
@@ -575,7 +628,9 @@
 											{user.username.charAt(0).toUpperCase()}
 										</div>
 										<div class="ml-4">
-											<div class="text-sm font-semibold text-gray-900 dark:text-white">{user.username}</div>
+											<div class="text-sm font-semibold text-gray-900 dark:text-white">
+												{user.username}
+											</div>
 											<div class="text-xs text-gray-500 dark:text-gray-400">
 												{user.nombre || ''}
 												{user.apellido || ''}
@@ -592,7 +647,9 @@
 										{user.role}
 									</span>
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{user.email}</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
+									>{user.email}</td
+								>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<span
 										class={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border ${user.is_active ? 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800' : 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-800'}`}
@@ -633,11 +690,17 @@
 		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
 		transition:fade
 	>
-		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 transform transition-all">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 transform transition-all"
+		>
 			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Nuevo Administrador</h2>
 			<form on:submit|preventDefault={handleCreateAdmin} class="space-y-4">
 				<div>
-					<label for="admin-username" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Nombre de Usuario</label>
+					<label
+						for="admin-username"
+						class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+						>Nombre de Usuario</label
+					>
 					<input
 						id="admin-username"
 						type="text"
@@ -648,7 +711,11 @@
 					/>
 				</div>
 				<div>
-					<label for="admin-password" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Contraseña</label>
+					<label
+						for="admin-password"
+						class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+						>Contraseña</label
+					>
 					<input
 						id="admin-password"
 						type="password"
@@ -689,14 +756,20 @@
 		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
 		transition:fade
 	>
-		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-8 transform transition-all">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-8 transform transition-all"
+		>
 			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
 				<span class="text-3xl">👨‍👩‍👧</span> Nuevo Padre
 			</h2>
 			<form on:submit|preventDefault={handleCreateParent} class="space-y-4">
 				<div class="grid grid-cols-2 gap-4">
 					<div>
-						<label for="parent-nombre" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Nombre</label>
+						<label
+							for="parent-nombre"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1"
+							>Nombre</label
+						>
 						<input
 							id="parent-nombre"
 							type="text"
@@ -707,7 +780,11 @@
 						/>
 					</div>
 					<div>
-						<label for="parent-apellido" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Apellido</label>
+						<label
+							for="parent-apellido"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1"
+							>Apellido</label
+						>
 						<input
 							id="parent-apellido"
 							type="text"
@@ -720,7 +797,11 @@
 				</div>
 
 				<div>
-					<label for="parent-username" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Nombre de Usuario</label>
+					<label
+						for="parent-username"
+						class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1"
+						>Nombre de Usuario</label
+					>
 					<input
 						id="parent-username"
 						type="text"
@@ -732,7 +813,10 @@
 				</div>
 
 				<div>
-					<label for="parent-email" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Email</label>
+					<label
+						for="parent-email"
+						class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Email</label
+					>
 					<input
 						id="parent-email"
 						type="email"
@@ -744,7 +828,11 @@
 				</div>
 
 				<div>
-					<label for="parent-password" class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Contraseña</label>
+					<label
+						for="parent-password"
+						class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1"
+						>Contraseña</label
+					>
 					<input
 						id="parent-password"
 						type="password"
@@ -786,15 +874,23 @@
 		class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
 		transition:fade
 	>
-		<div class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-4xl w-full p-0 overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-4xl w-full p-0 overflow-hidden transform transition-all flex flex-col max-h-[90vh]"
+		>
 			<!-- Modal Header -->
 			<div class="bg-gradient-to-r from-indigo-500 to-cyan-600 p-6 text-white shrink-0">
 				<div class="flex justify-between items-center">
 					<div>
 						<h2 class="text-2xl font-bold">Gestionar Hijos</h2>
-						<p class="text-indigo-100">Padre: {selectedParent.username} ({selectedParent.nombre} {selectedParent.apellido})</p>
+						<p class="text-indigo-100">
+							Padre: {selectedParent.username} ({selectedParent.nombre}
+							{selectedParent.apellido})
+						</p>
 					</div>
-					<button on:click={() => (showChildModal = false)} class="text-white hover:bg-white/20 p-2 rounded-full transition-colors">
+					<button
+						on:click={() => (showChildModal = false)}
+						class="text-white hover:bg-white/20 p-2 rounded-full transition-colors"
+					>
 						<span class="text-2xl">✕</span>
 					</button>
 				</div>
@@ -802,30 +898,44 @@
 
 			<div class="flex flex-col md:flex-row h-full overflow-hidden">
 				<!-- Children List (Left Side) -->
-				<div class="w-full md:w-1/2 border-r border-gray-100 dark:border-gray-700 p-6 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+				<div
+					class="w-full md:w-1/2 border-r border-gray-100 dark:border-gray-700 p-6 overflow-y-auto bg-gray-50 dark:bg-gray-900"
+				>
 					<h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
 						<span class="text-xl">📋</span> Hijos Registrados
 					</h3>
-					
+
 					{#if loadingChildren}
 						<div class="flex justify-center py-8">
 							<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
 						</div>
 					{:else if parentChildren.length === 0}
-						<div class="text-center py-8 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8">
+						<div
+							class="text-center py-8 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8"
+						>
 							<span class="text-4xl block mb-2">👶</span>
 							<p>No hay hijos registrados</p>
 						</div>
 					{:else}
 						<div class="space-y-4">
 							{#each parentChildren as child (child._id)}
-								<div class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex justify-between items-center group hover:shadow-md transition-shadow">
+								<div
+									class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex justify-between items-center group hover:shadow-md transition-shadow"
+								>
 									<div>
-										<h4 class="font-bold text-gray-900 dark:text-white">{child.nombre} {child.apellido}</h4>
-										<p class="text-sm text-gray-500 dark:text-gray-400">{child.grado} {child.curso || ''}</p>
-										<p class="text-xs text-gray-400">Nacimiento: {new Date(child.fecha_nacimiento).toLocaleDateString()}</p>
+										<h4 class="font-bold text-gray-900 dark:text-white">
+											{child.nombre}
+											{child.apellido}
+										</h4>
+										<p class="text-sm text-gray-500 dark:text-gray-400">
+											{child.grado}
+											{child.curso || ''}
+										</p>
+										<p class="text-xs text-gray-400">
+											Nacimiento: {new Date(child.fecha_nacimiento).toLocaleDateString()}
+										</p>
 									</div>
-									<button 
+									<button
 										on:click={() => handleDeleteChild(child._id!)}
 										class="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
 										title="Eliminar hijo"
@@ -846,7 +956,11 @@
 					<form on:submit|preventDefault={handleAddChild} class="space-y-4">
 						<div class="grid grid-cols-2 gap-4">
 							<div>
-								<label for="child-nombre" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nombre</label>
+								<label
+									for="child-nombre"
+									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+									>Nombre</label
+								>
 								<input
 									id="child-nombre"
 									type="text"
@@ -857,7 +971,11 @@
 								/>
 							</div>
 							<div>
-								<label for="child-apellido" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Apellido</label>
+								<label
+									for="child-apellido"
+									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+									>Apellido</label
+								>
 								<input
 									id="child-apellido"
 									type="text"
@@ -870,7 +988,11 @@
 						</div>
 
 						<div>
-							<label for="child-fecha" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha de Nacimiento</label>
+							<label
+								for="child-fecha"
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+								>Fecha de Nacimiento</label
+							>
 							<input
 								id="child-fecha"
 								type="date"
@@ -882,7 +1004,11 @@
 
 						<div class="grid grid-cols-2 gap-4">
 							<div>
-								<label for="child-grado" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Curso</label>
+								<label
+									for="child-grado"
+									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+									>Curso</label
+								>
 								<select
 									id="child-grado"
 									bind:value={newChild.grado}
@@ -896,7 +1022,11 @@
 								</select>
 							</div>
 							<div>
-								<label for="child-paralelo" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Paralelo</label>
+								<label
+									for="child-paralelo"
+									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+									>Paralelo</label
+								>
 								<input
 									id="child-paralelo"
 									type="text"

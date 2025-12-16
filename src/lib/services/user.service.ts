@@ -5,9 +5,11 @@ class UserService {
 	// Obtener todos los usuarios (apiCole maneja el token)
 	async getUsers(skip: number = 0, limit: number = 100): Promise<User[]> {
 		try {
-			// apiCole.get devuelve directamente la respuesta (response.json())
-			const data = await apiCole.get<User[]>(`/users/?skip=${skip}&limit=${limit}`);
-			return data;
+			// Usamos directamente /papas ya que /users no estÃ¡ disponible
+			const response = await apiCole.get<any>(`/papas?skip=${skip}&limit=${limit}`);
+			const padres = Array.isArray(response) ? response : response.data || [];
+			// Mapeamos o retornamos directamente si la estructura coincide con User
+			return padres;
 		} catch (error) {
 			console.error('💥 Get Users exception:', error);
 			throw error;

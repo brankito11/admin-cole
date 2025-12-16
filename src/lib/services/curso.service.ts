@@ -1,7 +1,7 @@
 import { apiCole } from '$lib/config/apiCole.config';
 
 class CursoService {
-	async getAll(skip: number = 0, limit: number = 100) {
+	async getAll(skip: number = 0, limit: number = 1000) {
 		return await apiCole.get(`/cursos/?skip=${skip}&limit=${limit}`);
 	}
 }

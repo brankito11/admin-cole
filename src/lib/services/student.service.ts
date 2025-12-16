@@ -2,8 +2,13 @@ import { apiCole } from '$lib/config/apiCole.config';
 
 class StudentService {
 	// Get all students
-	async getAll(skip: number = 0, limit: number = 100) {
-		return await apiCole.get(`/estudiantes/?skip=${skip}&limit=${limit}`);
+	async getAll(skip: number = 0, limit: number = 1000) {
+		try {
+			return await apiCole.get(`/estudiantes/?skip=${skip}&limit=${limit}`);
+		} catch (error) {
+			console.warn('⚠️ /estudiantes failed, attempting fallback to /students');
+			return await apiCole.get(`/students/?skip=${skip}&limit=${limit}`);
+		}
 	}
 
 	// Create new student
@@ -26,7 +31,7 @@ class StudentService {
 		const formData = new FormData();
 		// Manually append file. apiCole config handles Content-Type removal for FormData
 		formData.append('file', file);
-		return await apiCole.post('/estudiantes/import', formData);
+		return await apiCole.post('/estudiantes/import', formData, { timeout: 120000 });
 	}
 
 	// Bulk delete students using Excel RUDEs
