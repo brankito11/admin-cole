@@ -3,10 +3,12 @@ import type { GetUsersResponse, User } from '$lib/interfaces';
 
 class UserService {
 	// Obtener todos los usuarios (apiCole maneja el token)
-	async getUsers(skip: number = 0, limit: number = 100): Promise<User[]> {
+	// NOTA: El endpoint /papas NO soporta paginación, devuelve todos los usuarios
+	async getUsers(): Promise<User[]> {
 		try {
-			// Usamos directamente /papas ya que /users no estÃ¡ disponible
-			const response = await apiCole.get<any>(`/papas?skip=${skip}&limit=${limit}`);
+			// Usamos directamente /papas ya que /users no está disponible
+			// El backend ignora skip y limit, siempre devuelve todos
+			const response = await apiCole.get<any>(`/papas`);
 			const padres = Array.isArray(response) ? response : response.data || [];
 			// Mapeamos o retornamos directamente si la estructura coincide con User
 			return padres;

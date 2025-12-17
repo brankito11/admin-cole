@@ -1,6 +1,16 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { pagoService } from '$lib/services';
+	import { cursoService } from '$lib/services/curso.service';
+
 	let showModal = false;
 	let editingPayment: any = null;
+	let courses: any[] = [];
+	let courseMap: any = {};
+	let loading = false;
+	let isLoadingData = true;
+
+	// Form State
 	let formData = {
 		student: '',
 		parent: '',
@@ -11,98 +21,221 @@
 		grade: ''
 	};
 
-	let allPayments = [
-		{
-			id: 1,
-			student: 'Juan Pérez',
-			parent: 'María Pérez',
-			concept: 'Matrícula 2024',
-			amount: 150.0,
-			date: '2024-03-01',
-			status: 'Pagado',
-			grade: 'Quinto Grado'
-		},
-		{
-			id: 2,
-			student: 'Ana García',
-			parent: 'Carlos García',
-			concept: 'Mensualidad Marzo',
-			amount: 80.0,
-			date: '2024-03-05',
-			status: 'Pagado',
-			grade: 'Tercer Grado'
-		},
-		{
-			id: 3,
-			student: 'Pedro López',
-			parent: 'Laura López',
-			concept: 'Mensualidad Abril',
-			amount: 80.0,
-			date: '2024-04-05',
-			status: 'Pendiente',
-			grade: 'Cuarto Grado'
-		},
-		{
-			id: 4,
-			student: 'María Rodríguez',
-			parent: 'José Rodríguez',
-			concept: 'Seguro Estudiantil',
-			amount: 25.0,
-			date: '2024-03-01',
-			status: 'Vencido',
-			grade: 'Sexto Grado'
-		}
-	];
+	// Pagination
+	let page = 1;
+	let perPage = 10;
+	let total = 0;
+	let totalPages = 0;
 
 	let searchTerm = '';
 	let filterStatus = 'Todos';
+	let filterDate = '';
 
-	// Level and Grade Interaction
+	// Level, Grade, Shift, Section Interaction
 	let selectedLevel = '';
 	let selectedGrade = '';
+	let selectedShift = '';
+	let selectedSection = '';
 
-	const levels: Record<string, string[]> = {
-		'Inicial': ['Pre-Kinder', 'Kinder'],
-		'Primaria': ['Primer Grado', 'Segundo Grado', 'Tercer Grado', 'Cuarto Grado', 'Quinto Grado', 'Sexto Grado'],
-		'Secundaria': ['Primer Año', 'Segundo Año', 'Tercer Año', 'Cuarto Año', 'Quinto Año', 'Sexto Año']
-	};
+	// Dynamic Filter Data
+	let levels: Record<string, string[]> = {};
+
+	// These will be derived reactive variables based on selection
+	$: availableShifts = getAvailableShifts(selectedGrade);
+	$: availableSections = getAvailableSections(selectedGrade, selectedShift);
+
+	function getAvailableShifts(grade: string) {
+		if (!grade) return [];
+		const relevantCourses = courses.filter((c) => c.nombre === grade);
+		return [...new Set(relevantCourses.map((c) => c.turno))].sort();
+	}
+
+	function getAvailableSections(grade: string, shift: string) {
+		if (!grade) return [];
+		let relevantCourses = courses.filter((c) => c.nombre === grade);
+		if (shift) {
+			relevantCourses = relevantCourses.filter((c) => c.turno === shift);
+		}
+		return [...new Set(relevantCourses.map((c) => c.paralelo))].sort();
+	}
+
+	let allPayments: any[] = [];
+
+	onMount(() => {
+		initData();
+	});
+
+	// Grade Order Definition
+	const gradeOrder = [
+		'Pre-Kinder',
+		'Kinder',
+		'Primero de Primaria',
+		'Segundo de Primaria',
+		'Tercero de Primaria',
+		'Cuarto de Primaria',
+		'Quinto de Primaria',
+		'Sexto de Primaria',
+		'Primero de Secundaria',
+		'Segundo de Secundaria',
+		'Tercero de Secundaria',
+		'Cuarto de Secundaria',
+		'Quinto de Secundaria',
+		'Sexto de Secundaria'
+	];
+
+	function sortGrades(grades: string[]) {
+		return grades.sort((a, b) => {
+			let idxA = gradeOrder.indexOf(a);
+			let idxB = gradeOrder.indexOf(b);
+
+			if (idxA === -1) idxA = gradeOrder.findIndex((g) => a.startsWith(g.split(' ')[0]));
+			if (idxB === -1) idxB = gradeOrder.findIndex((g) => b.startsWith(g.split(' ')[0]));
+
+			if (idxA === -1) idxA = 999;
+			if (idxB === -1) idxB = 999;
+
+			return idxA - idxB;
+		});
+	}
+
+	async function initData() {
+		isLoadingData = true;
+		try {
+			const res = await cursoService.getAll(0, 1000);
+			courses = Array.isArray(res) ? res : res.data || [];
+
+			// Build Course Map and Dynamic Levels
+			const newLevels: Record<string, Set<string>> = {};
+
+			courses.forEach((c) => {
+				const cId = String(c._id || c.id);
+				courseMap[cId] = c;
+
+				if (c.codigo) courseMap[c.codigo] = c;
+				if (c.nombre) courseMap[c.nombre] = c;
+				if (c.malla_id) courseMap[c.malla_id] = c;
+
+				const niv = c.nivel || 'Otros';
+				if (!newLevels[niv]) newLevels[niv] = new Set();
+				newLevels[niv].add(c.nombre);
+			});
+
+			// Convert Sets to Arrays and sort
+			levels = {};
+			['Inicial', 'Primaria', 'Secundaria'].forEach((key) => {
+				if (newLevels[key]) {
+					levels[key] = sortGrades(Array.from(newLevels[key]));
+					delete newLevels[key];
+				}
+			});
+			Object.keys(newLevels).forEach((key) => {
+				levels[key] = sortGrades(Array.from(newLevels[key]));
+			});
+
+			await loadPayments();
+		} catch (e) {
+			console.error('Error initializing data', e);
+			await loadPayments();
+		}
+	}
+
+	async function loadPayments() {
+		isLoadingData = true;
+		try {
+			const filters: any = {
+				page,
+				per_page: perPage
+			};
+
+			if (searchTerm) filters.q = searchTerm;
+			if (selectedLevel) filters.nivel = selectedLevel;
+			if (selectedGrade) filters.grado = selectedGrade;
+			if (selectedShift) filters.turno = selectedShift;
+			if (selectedSection) filters.paralelo = selectedSection;
+			if (filterStatus !== 'Todos') filters.estado = filterStatus;
+			if (filterDate) filters.fecha = filterDate;
+
+			console.log('Fetching payments with filters:', filters);
+
+			const response = await pagoService.getAll(filters);
+			console.log('API Response for Payments:', response);
+
+			// Handle pagination response
+			if (response.data) {
+				allPayments = Array.isArray(response.data) ? response.data : [];
+				total = response.total || 0;
+				totalPages = response.total_pages || 0;
+			} else {
+				allPayments = Array.isArray(response) ? response : [];
+				total = allPayments.length;
+				totalPages = 1;
+			}
+		} catch (error) {
+			console.error('Error loading payments:', error);
+			allPayments = [];
+		} finally {
+			isLoadingData = false;
+		}
+	}
 
 	function selectLevel(level: string) {
 		selectedLevel = level;
-		selectedGrade = ''; // Reset grade
+		selectedGrade = '';
+		selectedShift = '';
+		selectedSection = '';
+		page = 1;
 	}
 
 	function selectGrade(grade: string) {
 		selectedGrade = grade;
+		selectedShift = '';
+		selectedSection = '';
+		page = 1;
 	}
 
-	$: filteredPayments = allPayments.filter((payment) => {
-		const matchesSearch =
-			payment.student.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			payment.parent.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			payment.concept.toLowerCase().includes(searchTerm.toLowerCase());
-		const matchesStatus = filterStatus === 'Todos' || payment.status === filterStatus;
-		
-		// Filter by Grade if selected
-		// Note: We match partially if naming is different (e.g. "Primer Año" vs "Primer Grado" in data). 
-		// Existing data uses "Grado". I'll assume exact match or partial match for safety.
-		// For Primary (Grado) vs Secondary (Año), ensure data aligns or just check inclusion.
-		// Given mock data has "Quinto Grado", let's use flexible matching.
-		const matchesGrade = selectedGrade === '' || payment.grade.includes(selectedGrade) || (selectedGrade.includes('Año') && payment.grade.includes(selectedGrade.replace('Año', 'Grado'))); 
-		// Fallback for Secondary if data uses Grado.
-		
-		return matchesSearch && matchesStatus && matchesGrade;
-	});
+	function selectShift(shift: string) {
+		selectedShift = shift;
+		selectedSection = '';
+		page = 1;
+	}
 
-	$: totalPaid = filteredPayments
+	function selectSection(section: string) {
+		selectedSection = section;
+		page = 1;
+	}
+
+	// Trigger loadPayments when filters change (Debounce search)
+	let searchTimeout: any;
+	$: {
+		const deps = [
+			page,
+			selectedLevel,
+			selectedGrade,
+			selectedShift,
+			selectedSection,
+			filterStatus,
+			filterDate
+		];
+		loadPayments();
+	}
+
+	function handleSearchInput() {
+		clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => {
+			page = 1;
+			loadPayments();
+		}, 300);
+	}
+
+	$: totalPaid = allPayments
 		.filter((p) => p.status === 'Pagado')
-		.reduce((sum, p) => sum + p.amount, 0);
-	$: totalPending = filteredPayments
+		.reduce((sum, p) => sum + (p.amount || 0), 0);
+	$: totalPending = allPayments
 		.filter((p) => p.status === 'Pendiente')
-		.reduce((sum, p) => sum + p.amount, 0);
-	$: totalOverdue = filteredPayments
+		.reduce((sum, p) => sum + (p.amount || 0), 0);
+	$: totalOverdue = allPayments
 		.filter((p) => p.status === 'Vencido')
-		.reduce((sum, p) => sum + p.amount, 0);
+		.reduce((sum, p) => sum + (p.amount || 0), 0);
 
 	function getStatusStyle(status: string) {
 		if (status === 'Pagado') return 'bg-green-100 text-green-800 border-green-200';
@@ -130,27 +263,41 @@
 		showModal = true;
 	}
 
-	function handleDelete(id: number) {
+	async function handleDelete(id: number) {
 		if (confirm('¿Estás seguro de eliminar este pago?')) {
-			allPayments = allPayments.filter((p) => p.id !== id);
+			try {
+				await pagoService.delete(id);
+				await loadPayments();
+				alert('Pago eliminado');
+			} catch (error) {
+				console.error('Error delete:', error);
+				alert('Error al eliminar pago');
+			}
 		}
 	}
 
-	function handleSubmit(e: Event) {
+	async function handleSubmit(e: Event) {
 		e.preventDefault();
+		loading = true;
 
-		if (editingPayment) {
-			// Update existing payment
-			allPayments = allPayments.map((p) =>
-				p.id === editingPayment.id ? { ...formData, id: p.id } : p
-			);
-		} else {
-			// Create new payment
-			const newId = Math.max(...allPayments.map((p) => p.id), 0) + 1;
-			allPayments = [...allPayments, { ...formData, id: newId }];
+		try {
+			if (editingPayment) {
+				await pagoService.update(editingPayment.id, formData);
+				alert('Pago actualizado correctamente');
+			} else {
+				await pagoService.create(formData);
+				alert('Pago creado correctamente');
+			}
+
+			showModal = false;
+			await loadPayments();
+		} catch (error: any) {
+			console.error('Error saving payment:', error);
+			const msg = error?.body?.message || error?.message || 'Error desconocido';
+			alert(`Error al guardar pago: ${msg}`);
+		} finally {
+			loading = false;
 		}
-
-		showModal = false;
 	}
 </script>
 
@@ -169,40 +316,108 @@
 		</button>
 	</div>
 
-	<!-- Level Selection -->
-	<div class="flex flex-wrap gap-4">
-		{#each Object.keys(levels) as level}
-			<button
-				on:click={() => selectLevel(level)}
-				class="px-6 py-3 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 text-lg flex-1 md:flex-none
-				{selectedLevel === level
-					? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white ring-2 ring-offset-2 ring-blue-500' 
-					: 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}"
-			>
-				{level}
-			</button>
-		{/each}
-	</div>
-
-	<!-- Grade Selection (Visible when Level selected) -->
-	{#if selectedLevel}
-		<div class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 animate-slide-up">
-			<h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wider">Cursos de {selectedLevel}</h3>
-			<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-				{#each levels[selectedLevel] as grade}
-					<button
-						on:click={() => selectGrade(grade)}
-						class="px-4 py-2 rounded-lg text-sm font-medium transition-all text-center
-						{selectedGrade === grade
-							? 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700 shadow-sm' 
-							: 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600'}"
-					>
-						{grade}
-					</button>
-				{/each}
-			</div>
+	<!-- Hierarchy Controls -->
+	<div class="space-y-4">
+		<!-- Level Tabs -->
+		<div class="flex flex-wrap gap-4">
+			{#each Object.keys(levels) as level}
+				<button
+					on:click={() => selectLevel(level)}
+					class="px-8 py-3 rounded-t-2xl font-bold transition-all text-lg flex-1 md:flex-none border-b-2
+					{selectedLevel === level
+						? 'bg-white dark:bg-gray-800 text-blue-600 border-blue-500 shadow-sm'
+						: 'bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-transparent hover:bg-gray-200 dark:hover:bg-gray-700'}"
+				>
+					{level}
+				</button>
+			{/each}
 		</div>
-	{/if}
+
+		<!-- Unified Selection Container -->
+		{#if selectedLevel}
+			<div
+				class="bg-white dark:bg-gray-800 p-6 rounded-b-2xl rounded-tr-2xl shadow-xl border border-gray-200 dark:border-gray-700 animate-slide-up space-y-8 relative"
+			>
+				<!-- Grades -->
+				<div>
+					<h3
+						class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
+					>
+						<span class="w-2 h-2 rounded-full bg-blue-500"></span>
+						Selecciona el Curso
+					</h3>
+					<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+						{#each levels[selectedLevel] as grade}
+							<button
+								on:click={() => selectGrade(grade)}
+								class="px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
+								{selectedGrade === grade
+									? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:border-blue-500 dark:text-blue-300 shadow-md transform scale-105'
+									: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
+							>
+								{grade}
+							</button>
+						{/each}
+					</div>
+				</div>
+
+				<!-- Turno & Paralelo (Side by Side if desktop) -->
+				{#if selectedGrade}
+					<div
+						class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-gray-100 dark:border-gray-700"
+					>
+						<!-- Shift Scope -->
+						<div class="animate-fade-in">
+							<h3
+								class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
+							>
+								<span class="w-2 h-2 rounded-full bg-purple-500"></span>
+								Turno
+							</h3>
+							<div class="flex gap-3">
+								{#each availableShifts as shift}
+									<button
+										on:click={() => selectShift(shift)}
+										class="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
+										{selectedShift === shift
+											? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-900/20 dark:border-purple-500 dark:text-purple-300 shadow-md'
+											: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
+									>
+										{shift}
+									</button>
+								{/each}
+							</div>
+						</div>
+
+						<!-- Section Scope -->
+						{#if selectedShift}
+							<div class="animate-fade-in">
+								<h3
+									class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
+								>
+									<span class="w-2 h-2 rounded-full bg-pink-500"></span>
+									Paralelo
+								</h3>
+								<div class="flex gap-3">
+									{#each availableSections as section}
+										<button
+											on:click={() => selectSection(section)}
+											class="w-14 h-12 rounded-xl text-lg font-bold transition-all flex items-center justify-center border-2
+											{selectedSection === section
+												? 'bg-pink-50 border-pink-500 text-pink-700 dark:bg-pink-900/20 dark:border-pink-500 dark:text-pink-300 shadow-md'
+												: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
+										>
+											{section}
+										</button>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		{/if}
+	</div>
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -244,7 +459,7 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Total Registros</p>
-					<p class="text-3xl font-bold mt-2">{filteredPayments.length}</p>
+					<p class="text-3xl font-bold mt-2">{total}</p>
 				</div>
 				<div class="text-5xl opacity-80">📋</div>
 			</div>
@@ -253,12 +468,13 @@
 
 	<!-- Filters -->
 	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 			<div>
 				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
 				<input
 					type="text"
 					bind:value={searchTerm}
+					on:input={handleSearchInput}
 					placeholder="Buscar por estudiante, padre o concepto..."
 					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
 				/>
@@ -275,92 +491,139 @@
 					<option>Vencido</option>
 				</select>
 			</div>
+			<div>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Fecha</label>
+				<input
+					type="date"
+					bind:value={filterDate}
+					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+				/>
+			</div>
 		</div>
 	</div>
 
 	<!-- Payments Table -->
 	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-		<div class="overflow-x-auto">
-			<table class="w-full">
-				<thead class="bg-gray-50 dark:bg-gray-700">
-					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-							>ID</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-							>Estudiante</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-							>Padre/Tutor</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-							>Concepto</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-							>Fecha</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-							>Monto</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-							>Estado</th
-						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-							>Acciones</th
-						>
-					</tr>
-				</thead>
-				<tbody class="divide-y divide-gray-200">
-					{#each filteredPayments as payment}
-						<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
-								>#{payment.id}</td
+		{#if isLoadingData}
+			<div class="flex items-center justify-center py-20">
+				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+			</div>
+		{:else if allPayments.length === 0}
+			<div class="text-center py-20">
+				<div class="text-6xl mb-4">💰</div>
+				<p class="text-gray-500 text-lg">No se encontraron pagos</p>
+			</div>
+		{:else}
+			<div class="overflow-x-auto">
+				<table class="w-full">
+					<thead class="bg-gray-50 dark:bg-gray-700">
+						<tr>
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+								>ID</th
 							>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm font-semibold text-gray-900 dark:text-white">{payment.student}</div>
-								<div class="text-xs text-gray-500 dark:text-gray-400">{payment.grade}</div>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{payment.parent}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{payment.concept}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{payment.date}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white"
-								>Bs {payment.amount.toFixed(2)}</td
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+								>Estudiante</th
 							>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<span
-									class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
-										payment.status
-									)}"
-								>
-									{payment.status}
-								</span>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm">
-								<div class="flex items-center gap-2">
-									<button
-										on:click={() => handleEdit(payment)}
-										class="text-blue-600 hover:text-blue-900 font-medium"
-										title="Editar"
-									>
-										✏️
-									</button>
-									<button
-										on:click={() => handleDelete(payment.id)}
-										class="text-red-600 hover:text-red-900 font-medium"
-										title="Eliminar"
-									>
-										🗑️
-									</button>
-									<button class="text-green-600 hover:text-green-900 font-medium" title="Ver">
-										👁️
-									</button>
-								</div>
-							</td>
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+								>Padre/Tutor</th
+							>
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+								>Concepto</th
+							>
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+								>Fecha</th
+							>
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+								>Monto</th
+							>
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+								>Estado</th
+							>
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+								>Acciones</th
+							>
 						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
+					</thead>
+					<tbody class="divide-y divide-gray-200">
+						{#each allPayments as payment}
+							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+								<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
+									>#{payment.id}</td
+								>
+								<td class="px-6 py-4 whitespace-nowrap">
+									<div class="text-sm font-semibold text-gray-900 dark:text-white">{payment.student}</div>
+									<div class="text-xs text-gray-500 dark:text-gray-400">{payment.grade}</div>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{payment.parent}</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{payment.concept}</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{payment.date}</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white"
+									>Bs {payment.amount.toFixed(2)}</td
+								>
+								<td class="px-6 py-4 whitespace-nowrap">
+									<span
+										class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
+											payment.status
+										)}"
+									>
+										{payment.status}
+									</span>
+								</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm">
+									<div class="flex items-center gap-2">
+										<button
+											on:click={() => handleEdit(payment)}
+											class="text-blue-600 hover:text-blue-900 font-medium"
+											title="Editar"
+										>
+											✏️
+										</button>
+										<button
+											on:click={() => handleDelete(payment.id)}
+											class="text-red-600 hover:text-red-900 font-medium"
+											title="Eliminar"
+										>
+											🗑️
+										</button>
+										<button class="text-green-600 hover:text-green-900 font-medium" title="Ver">
+											👁️
+										</button>
+									</div>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Pagination -->
+			<div class="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-600">
+				<div class="text-sm text-gray-700 dark:text-gray-300">
+					Mostrando <span class="font-semibold">{(page - 1) * perPage + 1}</span> a 
+					<span class="font-semibold">{Math.min(page * perPage, total)}</span> de 
+					<span class="font-semibold">{total}</span> resultados
+				</div>
+				<div class="flex items-center gap-2">
+					<button
+						disabled={page === 1}
+						on:click={() => page--}
+						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+					>
+						Anterior
+					</button>
+					<span class="text-sm text-gray-700 dark:text-gray-300">
+						Página <span class="font-semibold">{page}</span> de <span class="font-semibold">{totalPages}</span>
+					</span>
+					<button
+						disabled={page >= totalPages}
+						on:click={() => page++}
+						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
+					>
+						Siguiente
+					</button>
+				</div>
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -449,9 +712,10 @@
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+						disabled={loading}
+						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
 					>
-						{editingPayment ? 'Actualizar' : 'Guardar'}
+						{loading ? 'Guardando...' : editingPayment ? 'Actualizar' : 'Guardar'}
 					</button>
 				</div>
 			</form>

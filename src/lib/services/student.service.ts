@@ -2,12 +2,28 @@ import { apiCole } from '$lib/config/apiCole.config';
 
 class StudentService {
 	// Get all students
-	async getAll(skip: number = 0, limit: number = 1000) {
+	// Get all students with optional matching filters
+	async getAll(filters: any = {}) {
+		const { skip = 0, limit = 10, search = '', ...rest } = filters;
+
+		// Build query params
+		const params = new URLSearchParams({
+			skip: String(skip),
+			limit: String(limit)
+		});
+
+		if (search) params.append('search', search);
+
+		// Append other filters if they exist
+		Object.keys(rest).forEach((key) => {
+			if (rest[key]) params.append(key, rest[key]);
+		});
+
 		try {
-			return await apiCole.get(`/estudiantes/?skip=${skip}&limit=${limit}`);
+			return await apiCole.get(`/estudiantes/?${params.toString()}`);
 		} catch (error) {
 			console.warn('⚠️ /estudiantes failed, attempting fallback to /students');
-			return await apiCole.get(`/students/?skip=${skip}&limit=${limit}`);
+			return await apiCole.get(`/students/?${params.toString()}`);
 		}
 	}
 

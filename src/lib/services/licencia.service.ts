@@ -3,6 +3,28 @@ import type { Licencia, LicenciaCreateData, LicenciaResponse } from '$lib/interf
 
 class LicenciaService {
 	/**
+	 * Get all licencias with optional filters and pagination (Admin)
+	 */
+	async getAll(filters: any = {}) {
+		const { page = 1, per_page = 10, q = '', ...rest } = filters;
+
+		// Build query params
+		const params = new URLSearchParams({
+			page: String(page),
+			per_page: String(per_page)
+		});
+
+		if (q) params.append('q', q);
+
+		// Append other filters if they exist
+		Object.keys(rest).forEach((key) => {
+			if (rest[key]) params.append(key, rest[key]);
+		});
+
+		return await apiCole.get(`/libretas/?${params.toString()}`);
+	}
+
+	/**
 	 * Obtener todas las licencias del padre autenticado
 	 */
 	async getLicencias(): Promise<LicenciaResponse> {

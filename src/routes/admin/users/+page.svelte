@@ -12,22 +12,27 @@
 		RegisterCredentials
 	} from '$lib/interfaces';
 	import { fade, slide } from 'svelte/transition';
+	import Pagination from '$lib/components/pagination.svelte';
 
-	let users: User[] = [];
-	let loading = true;
-	let error: string | null = null;
-	let showModal = false;
+	let totalUsers = $state(0); // Total count from server
+	let loading = $state(true);
+	let error: string | null = $state(null);
+	let showModal = $state(false);
 	// Batch Upload State
-	let showBatchModal = false;
-	let batchFile: File | null = null;
-	let loadingBatch = false;
+	let showBatchModal = $state(false);
+	let batchFile: File | null = $state(null);
+	let loadingBatch = $state(false);
 
-	let creatingAdmin = false;
-	let searchTerm = '';
-	let filterRole = 'Todos';
+	let creatingAdmin = $state(false);
+	let searchTerm = $state('');
+	let filterRole = $state('Todos');
 
-	async function handleCreateAdmin() {
-		// if (!$auth?.token) return; // Handled by service
+	// Pagination State
+	let currentPage = $state(1);
+	let itemsPerPage = $state(10);
+
+	async function handleCreateAdmin(e?: Event) {
+		if (e) e.preventDefault();
 		creatingAdmin = true;
 		try {
 			// Ensure we pass a string, or handle it if we want authService to deal with it.
@@ -68,7 +73,7 @@
 		}
 	}
 
-	let isDragging = false;
+	let isDragging = $state(false);
 	function handleDragOver(e: DragEvent) {
 		e.preventDefault();
 		isDragging = true;
@@ -131,23 +136,36 @@
 		}
 	}
 
-	// ... (rest of the file content)
+	// Form data for new admin
+	let newAdmin: CreateAdminCredentials = $state({
+		username: '',
+		password: ''
+	});
 
-	// ... (rest of the file content)
+	// Parent Management State
+	let showParentModal = $state(false);
+	let creatingParent = $state(false);
+	let newParent: RegisterCredentials = $state({
+		email: '',
+		password: '',
+		username: '',
+		nombre: '',
+		apellido: ''
+	});
 
 	// Child Management State
-	let showChildModal = false;
-	let selectedParent: User | null = null;
-	let parentChildren: Hijo[] = [];
-	let loadingChildren = false;
-	let addingChild = false;
-	let newChild: HijoCreateData = {
+	let showChildModal = $state(false);
+	let currentParentId = $state('');
+	let parentChildren: Hijo[] = $state([]);
+	let loadingChildren = $state(false);
+	let addingChild = $state(false); // This was already here, keeping it.
+	let newChild: HijoCreateData = $state({
 		nombre: '',
 		apellido: '',
 		fecha_nacimiento: '',
 		grado: '',
 		curso: ''
-	};
+	});
 
 	const grados = [
 		'Pre-Kinder',
@@ -167,47 +185,119 @@
 	];
 
 	// Form data for new admin
-	let newAdmin: CreateAdminCredentials = {
+	let newAdmin: CreateAdminCredentials = $state({
 		username: '',
 		password: ''
-	};
-
-	$: filteredUsers = users.filter((user) => {
-		const matchesSearch =
-			user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			(user.nombre && user.nombre.toLowerCase().includes(searchTerm.toLowerCase())) ||
-			(user.apellido && user.apellido.toLowerCase().includes(searchTerm.toLowerCase()));
-
-		const matchesRole =
-			filterRole === 'Todos' ||
-			(filterRole === 'Admin' && user.role === 'ADMIN') ||
-			(filterRole === 'User' && user.role !== 'ADMIN' && user.role !== 'PADRE') ||
-			(filterRole === 'Padre' && user.role === 'PADRE');
-
-		return matchesSearch && matchesRole;
 	});
+	// Pagination Logic - Client Side (backend /papas no soporta paginación)
+	let totalPages = $derived(Math.ceil(totalUsers / itemsPerPage));
+	
+	// Use $derived for Svelte 5 reactivity
+	let paginatedUsers = $derived.by(() => {
+		console.log('🔄 Reactive pagination triggered', { 
+			allUsersCount: allUsers.length, 
+			currentPage, 
+			itemsPerPage, 
+			searchTerm, 
+			filterRole 
+		});
+		
+		// Apply filters
+		let filtered = allUsers.filter((user) => {
+			const matchesSearch = !searchTerm ||
+				user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+				user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+				(user.nombre && user.nombre.toLowerCase().includes(searchTerm.toLowerCase())) ||
+				(user.apellido && user.apellido.toLowerCase().includes(searchTerm.toLowerCase()));
+
+			const matchesRole =
+				filterRole === 'Todos' ||
+				(filterRole === 'Admin' && user.role === 'ADMIN') ||
+				(filterRole === 'User' && user.role !== 'ADMIN' && user.role !== 'PADRE') ||
+				(filterRole === 'Padre' && user.role === 'PADRE');
+
+			return matchesSearch && matchesRole;
+		});
+		
+		totalUsers = filtered.length;
+		
+		// Paginate
+		const startIndex = (currentPage - 1) * itemsPerPage;
+		const endIndex = startIndex + itemsPerPage;
+		const result = filtered.slice(startIndex, endIndex);
+		
+		console.log('✅ Pagination result:', { 
+			filteredCount: filtered.length, 
+			totalUsers, 
+			startIndex, 
+			endIndex, 
+			displayedUsers: result.length 
+		});
+		
+		return result;
+	});
+	
+	// Assign to users for display
+	let users = $derived(paginatedUsers);
+
+	// Search with debounce
+	let searchTimeout: any;
+	
+	function handleSearchInput() {
+		clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => {
+			currentPage = 1;
+		}, 600);
+	}
+
+	// Filter handlers - called explicitly when filters change
+	function handleFilterChange() {
+		currentPage = 1;
+	}
+
+	function handlePageChange(page: number) {
+		currentPage = page;
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	}
+
+	function handleLimitChange(limit: number) {
+		itemsPerPage = limit;
+		currentPage = 1;
+	}
+
+	let allUsers: User[] = $state([]);
 
 	onMount(async () => {
 		await loadUsers();
 	});
 
 	async function loadUsers() {
-		// remove token check
-		// if (!$auth?.token) return;
 		loading = true;
 		error = null;
 		try {
+			console.log('Fetching all users from backend...');
+			
 			const res = await userService.getUsers();
-			console.log(`Users loaded: ${Array.isArray(res) ? res.length : res?.data?.length || 0}`);
-			// Safely handle if response is array or object with data
-			// Safely handle if response is array or object with data
-			// Cast to any to access .data property if it exists, or use directly if array
+			
+			console.log('API Response for Users:', res);
+			
+			// Handle different response formats
 			const resAny = res as any;
-			users = Array.isArray(res) ? res : resAny.data || [];
-		} catch (e) {
+			if (Array.isArray(res)) {
+				allUsers = res;
+			} else if (resAny.data) {
+				allUsers = resAny.data;
+			} else {
+				allUsers = [];
+			}
+
+			totalUsers = allUsers.length;
+			console.log(`Total users fetched: ${allUsers.length}`);
+		} catch (e: any) {
 			error = `Error al cargar usuarios: ${e.message || e}`;
 			console.error('Error loading users:', e.message || 'Unknown error');
+			allUsers = [];
+			totalUsers = 0;
 		} finally {
 			loading = false;
 		}
@@ -220,24 +310,15 @@
 
 		try {
 			await userService.deleteUser(userId);
-			users = users.filter((u) => u._id !== userId);
+			await loadUsers();
 		} catch (e) {
 			alert('Error al eliminar usuario');
 			console.error(e);
 		}
 	}
 
-	let showParentModal = false;
-	let creatingParent = false;
-	let newParent: RegisterCredentials = {
-		email: '',
-		username: '',
-		password: '',
-		nombre: '',
-		apellido: ''
-	};
-
-	async function handleCreateParent() {
+	async function handleCreateParent(e?: Event) {
+		if (e) e.preventDefault();
 		creatingParent = true;
 		try {
 			// Register returns the User object
@@ -247,23 +328,19 @@
 			showParentModal = false;
 			newParent = { email: '', username: '', password: '', nombre: '', apellido: '' };
 
-			// Force refresh users
-			if (true) {
-				// always try reload, apiCole handles auth
-				users = await userService.getUsers();
-			}
+			await loadUsers();
 
 			// Ensure the new user is found and visible
 			filterRole = 'Todos';
-			searchTerm = createdUser.username; // Auto search for the new user
+			searchTerm = createdUser.email; // Auto search for the new user
 
-			const parentUser = users.find((u) => u.username === createdUser.username) || createdUser;
+			const parentUser = allUsers.find((u) => u.username === createdUser.username) || createdUser;
 
 			// Immediately open child modal
 			if (parentUser) {
 				openChildModal(parentUser as User);
 			}
-		} catch (e) {
+		} catch (e: any) {
 			console.error(e);
 			const msg = e instanceof Error ? e.message : 'Error desconocido';
 
@@ -279,7 +356,7 @@
 				);
 
 				// Try to find the user in the existing list
-				const existingUser = users.find(
+				const existingUser = allUsers.find(
 					(u) => u.username === newParent.username || u.email === newParent.email
 				);
 
@@ -294,7 +371,7 @@
 				} else {
 					// Try to reload users then find
 					await loadUsers();
-					const reloadedUser = users.find(
+					const reloadedUser = allUsers.find(
 						(u) => u.username === newParent.username || u.email === newParent.email
 					);
 					if (reloadedUser) {
@@ -314,7 +391,7 @@
 		}
 	}
 
-	// ... rest of child mgmt ...
+	let selectedParent: User | null = $state(null);
 
 	// Child Management Functions
 	async function openChildModal(parent: User) {
@@ -336,7 +413,8 @@
 		}
 	}
 
-	async function handleAddChild() {
+	async function handleAddChild(e?: Event) {
+		if (e) e.preventDefault();
 		if (!selectedParent) return;
 		addingChild = true;
 		try {
@@ -358,7 +436,7 @@
 			// Reset form
 			newChild = { nombre: '', apellido: '', fecha_nacimiento: '', grado: '', curso: '' };
 			alert('Hijo agregado exitosamente');
-		} catch (e) {
+		} catch (e: any) {
 			console.error(e);
 			// Show specific error message
 			const msg = e instanceof Error ? e.message : 'Error desconocido';
@@ -400,21 +478,21 @@
 		</div>
 		<div class="flex gap-4">
 			<button
-				on:click={openBatchModal}
+				onclick={openBatchModal}
 				class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">📤</span>
 				Subir por lote
 			</button>
 			<button
-				on:click={() => (showParentModal = true)}
+				onclick={() => (showParentModal = true)}
 				class="px-6 py-3 bg-gradient-to-r from-[#AA7229] to-[#C4944A] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">👨‍👩‍👧</span>
 				Nuevo Padre
 			</button>
 			<button
-				on:click={() => (showModal = true)}
+				onclick={() => (showModal = true)}
 				class="px-6 py-3 bg-gradient-to-r from-[#5A6840] to-[#6E7D4E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">🛡️</span>
@@ -452,7 +530,7 @@
 								{(batchFile.size / 1024).toFixed(2)} KB
 							</p>
 							<button
-								on:click={() => (batchFile = null)}
+								onclick={() => (batchFile = null)}
 								class="mt-2 text-red-500 text-sm hover:underline">Eliminar</button
 							>
 						{:else}
@@ -465,7 +543,7 @@
 								accept=".xlsx, .xls"
 								class="hidden"
 								id="file-upload-padres"
-								on:change={handleFileSelect}
+								onchange={handleFileSelect}
 							/>
 							<label
 								for="file-upload-padres"
@@ -475,7 +553,7 @@
 							</label>
 							<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
 								<button
-									on:click={downloadTemplate}
+									onclick={downloadTemplate}
 									class="text-sm text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 underline"
 								>
 									¿No tienes el archivo? Ver formato requerido
@@ -486,13 +564,13 @@
 
 					<div class="flex gap-3">
 						<button
-							on:click={closeBatchModal}
+							onclick={closeBatchModal}
 							class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-semibold"
 						>
 							Cancelar
 						</button>
 						<button
-							on:click={handleBatchUpload}
+							onclick={handleBatchUpload}
 							disabled={!batchFile || loadingBatch}
 							class="flex-1 px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg hover:from-emerald-600 hover:to-green-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
 						>
@@ -555,6 +633,7 @@
 					id="search-users"
 					type="text"
 					bind:value={searchTerm}
+					oninput={handleSearchInput}
 					placeholder="Buscar por nombre, usuario o email..."
 					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 				/>
@@ -568,6 +647,7 @@
 				<select
 					id="filter-role"
 					bind:value={filterRole}
+					onchange={handleFilterChange}
 					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 				>
 					<option>Todos</option>
@@ -615,7 +695,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-						{#each filteredUsers as user (user._id)}
+						{#each users as user (user._id)}
 							<tr
 								class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
 								transition:slide
@@ -660,7 +740,7 @@
 								<td class="px-6 py-4 whitespace-nowrap text-sm flex gap-2">
 									{#if user.role === 'PADRE'}
 										<button
-											on:click={() => openChildModal(user)}
+											onclick={() => openChildModal(user)}
 											class="bg-indigo-50 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-800 font-medium transition-colors px-3 py-1 rounded-lg flex items-center gap-1"
 											title="Gestionar Hijos"
 										>
@@ -668,7 +748,7 @@
 										</button>
 									{/if}
 									<button
-										on:click={() => handleDelete(user._id)}
+										onclick={() => handleDelete(user._id)}
 										class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 font-medium transition-colors p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
 										title="Eliminar usuario"
 									>
@@ -680,6 +760,18 @@
 					</tbody>
 				</table>
 			</div>
+		{/if}
+
+		<!-- Pagination -->
+		{#if totalUsers > 0}
+			<Pagination
+				currentPage={currentPage}
+				totalPages={totalPages}
+				totalItems={totalUsers}
+				limit={itemsPerPage}
+				onPageChange={handlePageChange}
+				onLimitChange={handleLimitChange}
+			/>
 		{/if}
 	</div>
 </div>
@@ -694,7 +786,7 @@
 			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 transform transition-all"
 		>
 			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Nuevo Administrador</h2>
-			<form on:submit|preventDefault={handleCreateAdmin} class="space-y-4">
+			<form on:submit|onsubmit={handleCreateAdmin} class="space-y-4">
 				<div>
 					<label
 						for="admin-username"
@@ -728,7 +820,7 @@
 				<div class="flex justify-end gap-4 mt-8">
 					<button
 						type="button"
-						on:click={() => (showModal = false)}
+						onclick={() => (showModal = false)}
 						class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold transition-colors"
 						disabled={creatingAdmin}
 					>
@@ -762,7 +854,7 @@
 			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
 				<span class="text-3xl">👨‍👩‍👧</span> Nuevo Padre
 			</h2>
-			<form on:submit|preventDefault={handleCreateParent} class="space-y-4">
+			<form on:submit|onsubmit={handleCreateParent} class="space-y-4">
 				<div class="grid grid-cols-2 gap-4">
 					<div>
 						<label
@@ -846,7 +938,7 @@
 				<div class="flex justify-end gap-4 mt-8">
 					<button
 						type="button"
-						on:click={() => (showParentModal = false)}
+						onclick={() => (showParentModal = false)}
 						class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold transition-colors"
 						disabled={creatingParent}
 					>
@@ -888,7 +980,7 @@
 						</p>
 					</div>
 					<button
-						on:click={() => (showChildModal = false)}
+						onclick={() => (showChildModal = false)}
 						class="text-white hover:bg-white/20 p-2 rounded-full transition-colors"
 					>
 						<span class="text-2xl">✕</span>
@@ -936,7 +1028,7 @@
 										</p>
 									</div>
 									<button
-										on:click={() => handleDeleteChild(child._id!)}
+										onclick={() => handleDeleteChild(child._id!)}
 										class="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
 										title="Eliminar hijo"
 									>
@@ -953,7 +1045,7 @@
 					<h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
 						<span class="text-xl">➕</span> Agregar Nuevo Hijo
 					</h3>
-					<form on:submit|preventDefault={handleAddChild} class="space-y-4">
+					<form on:submit|onsubmit={handleAddChild} class="space-y-4">
 						<div class="grid grid-cols-2 gap-4">
 							<div>
 								<label

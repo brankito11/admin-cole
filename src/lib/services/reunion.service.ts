@@ -15,13 +15,32 @@ class ReunionService {
 		}
 	}
 
-	// Obtener todas las reuniones con paginación
-	async getAllReuniones(skip: number = 0, limit: number = 100): Promise<GetReunionesResponse> {
+	// Obtener todas las reuniones con paginación y filtros
+	async getAllReuniones(filters: any = {}): Promise<GetReunionesResponse> {
 		try {
+			const { page = 1, per_page = 10, q = '', skip, limit, ...rest } = filters;
+
+			// Build query params - support both old (skip/limit) and new (page/per_page) formats
+			const params = new URLSearchParams();
+
+			if (page !== undefined) {
+				params.append('page', String(page));
+				params.append('per_page', String(per_page));
+			} else {
+				// Fallback to old format for backwards compatibility
+				params.append('skip', String(skip || 0));
+				params.append('limit', String(limit || 100));
+			}
+
+			if (q) params.append('q', q);
+
+			// Append other filters if they exist
+			Object.keys(rest).forEach((key) => {
+				if (rest[key]) params.append(key, rest[key]);
+			});
+
 			console.log('📋 Get All Reuniones request');
-			const result = await apiCole.get<GetReunionesResponse>(
-				`/reuniones/?skip=${skip}&limit=${limit}`
-			);
+			const result = await apiCole.get<GetReunionesResponse>(`/reuniones/?${params.toString()}`);
 			console.log('✅ Reuniones obtenidas');
 			return result;
 		} catch (error) {

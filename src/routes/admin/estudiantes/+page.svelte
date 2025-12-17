@@ -3,44 +3,57 @@
 	import { studentService } from '$lib/services/student.service';
 	import { userService } from '$lib/services/user.service';
 	import { cursoService } from '$lib/services/curso.service';
+	import Pagination from '$lib/components/pagination.svelte';
 
-	let showModal = false;
-	let editingStudent: any = null;
-	let courses: any[] = [];
-	let courseMap: any = {};
-	let showBatchModal = false;
-	let batchFile: File | null = null;
-	let loading = false;
-	let isLoadingData = true;
+	// Modal and Loading States
+	let showModal = $state(false);
+	let editingStudent: any = $state(null);
+	let courses: any[] = $state([]);
+	let courseMap: any = $state({});
+	let showBatchModal = $state(false);
+	let batchFile: File | null = $state(null);
+	let loading = $state(false);
+	let isLoadingData = $state(true);
 
 	// Form State
-	let form = {
+	let form = $state({
 		name: '',
-		grade: '3ro de Primaria',
+		grade: '',
 		section: '',
 		shift: 'MAÑANA',
 		parent: '',
 		email: '',
 		phone: '',
 		status: 'Activo'
-	};
+	});
 
-	let searchTerm = '';
-	let filterGrade = 'Todos';
-	let filterStatus = 'Todos';
+	// Filter and Search State
+	let searchTerm = $state('');
+	let filterGrade = $state('Todos');
+	let filterStatus = $state('Todos');
+	let selectedLevel = $state('');
+	let selectedGrade = $state('');
+	let selectedShift = $state('');
+	let selectedSection = $state('');
 
-	// Level and Grade Interaction
-	let selectedLevel = '';
-	let selectedGrade = '';
-	let selectedShift = '';
-	let selectedSection = '';
+	// Pagination State
+	let allStudentsRaw: any[] = $state([]);
+	let currentPage = $state(1);
+	let itemsPerPage = $state(10);
+	let totalStudents = $state(0);
 
-	// Dynamic Filter Data
-	let levels: Record<string, string[]> = {};
+	// Data Structures
+	let levels: Record<string, string[]> = $state({});
+	const gradeOrder = [
+		'Pre-Kinder', 'Kinder', 'Primero de Primaria', 'Segundo de Primaria', 'Tercero de Primaria',
+		'Cuarto de Primaria', 'Quinto de Primaria', 'Sexto de Primaria', 'Primero de Secundaria',
+		'Segundo de Secundaria', 'Tercero de Secundaria', 'Cuarto de Secundaria', 'Quinto de Secundaria',
+		'Sexto de Secundaria'
+	];
 
-	// These will be derived reactive variables based on selection
-	$: availableShifts = getAvailableShifts(selectedGrade);
-	$: availableSections = getAvailableSections(selectedGrade, selectedShift);
+	// Derived logic for filters
+	let availableShifts = $derived(getAvailableShifts(selectedGrade));
+	let availableSections = $derived(getAvailableSections(selectedGrade, selectedShift));
 
 	function getAvailableShifts(grade: string) {
 		if (!grade) return [];
@@ -51,98 +64,56 @@
 	function getAvailableSections(grade: string, shift: string) {
 		if (!grade) return [];
 		let relevantCourses = courses.filter((c) => c.nombre === grade);
-		if (shift) {
-			relevantCourses = relevantCourses.filter((c) => c.turno === shift);
-		}
+		if (shift) relevantCourses = relevantCourses.filter((c) => c.turno === shift);
 		return [...new Set(relevantCourses.map((c) => c.paralelo))].sort();
 	}
 
-	let allStudents: any[] = [];
-
-	onMount(() => {
-		initData();
-	});
-
-	// Grade Order Definition
-	const gradeOrder = [
-		'Pre-Kinder',
-		'Kinder',
-		'Primero de Primaria',
-		'Segundo de Primaria',
-		'Tercero de Primaria',
-		'Cuarto de Primaria',
-		'Quinto de Primaria',
-		'Sexto de Primaria',
-		'Primero de Secundaria',
-		'Segundo de Secundaria',
-		'Tercero de Secundaria',
-		'Cuarto de Secundaria',
-		'Quinto de Secundaria',
-		'Sexto de Secundaria'
-	];
-
 	function sortGrades(grades: string[]) {
 		return grades.sort((a, b) => {
-			const indexA = gradeOrder.findIndex((g) => a.includes(g.split(' ')[0])); // fuzzy match first word if needed, or strict
-			const indexB = gradeOrder.findIndex((g) => b.includes(g.split(' ')[0]));
-			// Fallback for exact matches if strings are exact
 			let idxA = gradeOrder.indexOf(a);
 			let idxB = gradeOrder.indexOf(b);
-
-			// If not found in strict, try fuzzy (e.g. "Primero" vs "Primero de Secundaria")
 			if (idxA === -1) idxA = gradeOrder.findIndex((g) => a.startsWith(g.split(' ')[0]));
 			if (idxB === -1) idxB = gradeOrder.findIndex((g) => b.startsWith(g.split(' ')[0]));
-
-			// If still not found, push to end
 			if (idxA === -1) idxA = 999;
 			if (idxB === -1) idxB = 999;
-
 			return idxA - idxB;
 		});
 	}
 
+	onMount(async () => {
+		await initData();
+	});
+
 	async function initData() {
 		isLoadingData = true;
 		try {
-			const res = await cursoService.getAll(0, 1000); // Ensure we get all courses
+			const res = await cursoService.getAll(0, 1000) as any;
 			courses = Array.isArray(res) ? res : res.data || [];
 
-			// Build Course Map and Dynamic Levels
 			const newLevels: Record<string, Set<string>> = {};
-
-			// Log sample course to inspect structure
-			if (courses.length > 0) {
-				console.log('Sample Course Object:', courses[0]);
-			}
-
 			courses.forEach((c) => {
 				const cId = String(c._id || c.id);
 				courseMap[cId] = c;
-
-				// Map by name/code if available as alternate keys
 				if (c.codigo) courseMap[c.codigo] = c;
-				if (c.nombre) courseMap[c.nombre] = c; // Fallback
-				if (c.malla_id) courseMap[c.malla_id] = c; // MATCH: Excel uses malla_id as Curso ID
+				if (c.nombre) courseMap[c.nombre] = c;
+				if (c.malla_id) courseMap[c.malla_id] = c;
 
-				// Populate Levels
 				const niv = c.nivel || 'Otros';
 				if (!newLevels[niv]) newLevels[niv] = new Set();
 				newLevels[niv].add(c.nombre);
 			});
 
-			// Convert Sets to Arrays and sort using custom sorter
-			levels = {};
-			// Enforce order if keys exist
+			const updatedLevels: Record<string, string[]> = {};
 			['Inicial', 'Primaria', 'Secundaria'].forEach((key) => {
 				if (newLevels[key]) {
-					levels[key] = sortGrades(Array.from(newLevels[key]));
+					updatedLevels[key] = sortGrades(Array.from(newLevels[key]));
 					delete newLevels[key];
 				}
 			});
-			// Add remaining
 			Object.keys(newLevels).forEach((key) => {
-				levels[key] = sortGrades(Array.from(newLevels[key]));
+				updatedLevels[key] = sortGrades(Array.from(newLevels[key]));
 			});
+			levels = updatedLevels;
 
 			await loadStudents();
 		} catch (e) {
@@ -152,107 +123,139 @@
 	}
 
 	async function loadStudents() {
+		isLoadingData = true;
 		try {
-			// In a real scenario we might need to map the backend response to our frontend model
-			// Assuming backend returns: { id, nombres, apellidos, cursor_id, estado, ... }
-			// We map it to: { id, name, grade, section, status ... }
-			const response = await studentService.getAll();
-			console.log('API Response for Students:', response);
+			const skip = (currentPage - 1) * itemsPerPage;
+			const response = await studentService.getAll({ skip, limit: itemsPerPage }) as any;
+			
+			let rawStudents = [];
+			let total = 0;
 
-			// Since we don't know exact backend structure array, we'll try to map best effort
-			// If response is array directly:
-			const rawStudents = Array.isArray(response) ? response : response.data || [];
-			console.log(`Raw students count: ${rawStudents.length}`);
+			if (Array.isArray(response)) {
+				rawStudents = response;
+				// If API doesn't return total, we can only guess if there's more. 
+				// But we'll try to use a safe total if we can't find it.
+				total = rawStudents.length < itemsPerPage ? skip + rawStudents.length : 1000;
+			} else if (response && response.data) {
+				rawStudents = response.data;
+				total = response.total || response.total_count || response.count || (rawStudents.length < itemsPerPage ? skip + rawStudents.length : 1000);
+			}
 
-			allStudents = rawStudents.map((s: any, i) => {
-				// Try multiple keys for Course ID or Object
-				let cId = String(
-					s.curso_id ||
-						s.cursoId ||
-						s.courseId ||
-						s.course_id ||
-						s['Curso ID'] ||
-						s['curso ID'] ||
-						''
-				);
+			// Update total for pagination
+			totalStudents = total;
 
-				// Identify if a 'course' object is already populated
-				let c: any = null;
-				if (typeof s.curso === 'object' && s.curso !== null) c = s.curso;
-				else if (typeof s.course === 'object' && s.course !== null) c = s.course;
-				else if (cId) c = courseMap[cId];
-
-				// Fallback: If cId looks like a code (e.g., "SEC-1") try lookup by code/name
-				if (!c && cId && courseMap[cId]) c = courseMap[cId]; // Retry map just in case
-
-				if (!c && i < 3)
-					console.log(
-						`No course found for Student: ${s.nombres || s.name}, Keys Checked: [curso_id, cursoId, courseId, 'Curso ID'], Value: ${cId}`
-					);
+			allStudentsRaw = rawStudents.map((s: any) => {
+				let cId = String(s.curso_id || s.cursoId || s.courseId || s.course_id || s['Curso ID'] || '');
+				let c = (typeof s.curso === 'object' && s.curso) || courseMap[cId];
 
 				return {
 					id: s.id || s._id,
-					rude: s.rude || s.RUDE, // Excel column might be uppercase
+					rude: s.rude || s.RUDE,
 					curso_id: cId,
-					name:
-						s.name ||
-						`${s.nombres || s.Nombres || ''} ${s.apellidos || s.Apellidos || ''}`.trim() ||
-						'Sin Nombre',
-					grade: c ? c.nombre || c.name : s.grade || 'Sin Grado',
-					section: c ? c.paralelo || c.section : s.section || 'A',
-					shift: c ? c.turno || s.shift : s.shift || 'Mañana', // Use course shift if linked
+					name: s.name || `${s.nombres || ''} ${s.apellidos || ''}`.trim() || 'Sin Nombre',
+					grade: c ? c.nombre : s.grade || 'Sin Grado',
+					section: c ? c.paralelo : s.section || 'A',
+					shift: c ? c.turno : s.shift || 'Mañana',
 					parent: s.parent || s.padre || 'No asignado',
 					email: s.email || '',
 					phone: s.phone || '',
-					status: s.status || s.estado || s.Estado || 'Activo'
+					status: s.status || s.estado || 'Activo'
 				};
 			});
-
-			// Deduplicate students (handle multiple imports)
-			const seen = new Set();
-			allStudents = allStudents.filter((s) => {
-				// Use RUDE as unique key, fallback to Name + Grade if RUDE is missing/0
-				const key = s.rude && s.rude !== '0' ? String(s.rude) : `${s.name}|${s.grade}`;
-				if (seen.has(key)) return false;
-				seen.add(key);
-				return true;
-			});
-
-			console.log(`Mapped students count (unique): ${allStudents.length}`);
-		} catch (error) {
+		} catch (error: any) {
 			console.error('Error loading students:', error);
-			// Keep mock data if fetch fails for dev purposes or empty
-			if (allStudents.length === 0) {
-				// Fallback to empty or toast error
-			}
 		} finally {
 			isLoadingData = false;
 		}
 	}
 
-	function selectLevel(level: string) {
-		selectedLevel = level;
+	// Simplified logic: Server-side pagination is now primary.
+	// Client-side filtering is "visual only" for now per user request.
+	let filteredStudents = $derived(allStudentsRaw);
+	
+	// totalStudents is updated in loadStudents()
+	let totalPages = $derived(Math.ceil(totalStudents / itemsPerPage));
+	
+	// paginatedStudents is already paginated by the API
+	let paginatedStudents = $derived(allStudentsRaw);
+
+	// Derived Stats
+	let activeCount = $derived(filteredStudents.filter(s => s.status.toUpperCase().includes('ACTIV')).length);
+	let inactiveCount = $derived(filteredStudents.filter(s => s.status.toUpperCase().includes('INACTIV')).length);
+	let gradeCount = $derived(new Set(filteredStudents.map(s => s.grade)).size);
+
+	// Event Handlers
+	function selectLevel(level: string) { 
+		selectedLevel = selectedLevel === level ? '' : level; 
+		// Visual only now, but we'll reset page
+		currentPage = 1;
+		loadStudents();
+	}
+	function selectGrade(grade: string) { 
+		selectedGrade = selectedGrade === grade ? '' : grade; 
+		currentPage = 1;
+		loadStudents();
+	}
+	function selectShift(shift: string) { 
+		selectedShift = selectedShift === shift ? '' : shift; 
+		currentPage = 1;
+		loadStudents();
+	}
+	function selectSection(section: string) { 
+		selectedSection = selectedSection === section ? '' : section; 
+		currentPage = 1;
+		loadStudents();
+	}
+	
+	function handleSearchInput() { currentPage = 1; loadStudents(); }
+	function handlePageChange(page: number) { currentPage = page; loadStudents(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+	function handleLimitChange(limit: number) { itemsPerPage = limit; currentPage = 1; loadStudents(); }
+	function handleFilterChange() { currentPage = 1; loadStudents(); }
+
+	function clearFilters() {
+		searchTerm = '';
+		filterGrade = 'Todos';
+		filterStatus = 'Todos';
+		selectedLevel = '';
 		selectedGrade = '';
 		selectedShift = '';
 		selectedSection = '';
+		currentPage = 1;
+		loadStudents();
 	}
 
-	function selectGrade(grade: string) {
-		selectedGrade = grade;
-		selectedShift = '';
-		selectedSection = '';
+	function getStatusStyle(status: string) {
+		const s = (status || '').toUpperCase();
+		if (s.includes('ACTIV')) return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800';
+		if (s.includes('INACTIV')) return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-800';
+		return 'bg-gray-100 text-gray-800 border-gray-200';
 	}
 
-	function selectShift(shift: string) {
-		selectedShift = shift;
-		selectedSection = '';
+	let viewingStudent: any = $state(null);
+	function handleView(student: any) { viewingStudent = student; }
+	function openBatchModal() { showBatchModal = true; }
+	function closeBatchModal() { showBatchModal = false; batchFile = null; }
+
+	function handleFileSelect(event: Event) {
+		const target = event.target as HTMLInputElement;
+		if (target.files && target.files.length > 0) batchFile = target.files[0];
 	}
 
-	function selectSection(section: string) {
-		selectedSection = section;
+	async function handleBatchUpload() {
+		if (!batchFile) return;
+		loading = true;
+		try {
+			const result = await studentService.importStudents(batchFile) as any;
+			alert(`Procesado. ${result.created || 0} estudiantes importados.`);
+			closeBatchModal();
+			await loadStudents();
+		} catch (error) {
+			alert('Error al subir archivo');
+		} finally {
+			loading = false;
+		}
 	}
 
-	// Helper to split full name
 	function splitName(fullName: string) {
 		const parts = fullName.trim().split(' ');
 		const nombres = parts.slice(0, Math.ceil(parts.length / 2)).join(' ');
@@ -260,36 +263,33 @@
 		return { nombres, apellidos };
 	}
 
-	async function saveStudent() {
+	async function saveStudent(e?: Event) {
+		if (e) e.preventDefault();
 		loading = true;
 		try {
 			const { nombres, apellidos } = splitName(form.name);
-
 			const payload = {
-				rude: editingStudent ? editingStudent.rude || '0' : '0', // Ensure string/value
-				nombres: nombres,
-				apellidos: apellidos || '.',
-				curso_id: form.grade, // This must be the Course ID string
-				turno: form.shift, // Add requested shift button value
+				rude: editingStudent?.rude || '0',
+				nombres, apellidos: apellidos || '.',
+				curso_id: form.grade,
+				turno: form.shift,
 				estado: form.status.toUpperCase()
 			};
-
-			console.log('Saving student payload:', payload);
 
 			if (editingStudent) {
 				await studentService.update(editingStudent.id, payload);
 				alert('Estudiante actualizado correctamente');
 			} else {
-				await studentService.create(payload);
+				const result = await studentService.create(payload) as any;
 				alert('Estudiante creado correctamente');
 			}
 
 			showModal = false;
-			loadStudents(); // Refresh list
+			await loadStudents();
 		} catch (error: any) {
 			console.error('Error saving student:', error);
 			const msg = error?.body?.message || error?.message || 'Error desconocido';
-			alert(`Error al guardar estudiante: ${msg}`);
+			alert(`Error al guardar: ${msg}`);
 		} finally {
 			loading = false;
 		}
@@ -297,147 +297,24 @@
 
 	function handleCreate() {
 		editingStudent = null;
-		form = {
-			name: '',
-			grade: courses.length > 0 ? courses[0]._id : '',
-			section: '',
-			shift: 'MAÑANA',
-			parent: '',
-			email: '',
-			phone: '',
-			status: 'Activo'
-		};
+		form = { name: '', grade: courses[0]?._id || '', section: '', shift: 'MAÑANA', parent: '', email: '', phone: '', status: 'Activo' };
 		showModal = true;
 	}
 
 	function handleEdit(student: any) {
 		editingStudent = student;
-		form = {
-			name: student.name,
-			grade: student.curso_id,
-			section: student.section,
-			shift: (student.shift || 'MAÑANA').toUpperCase(), // Normalize default
-			parent: student.parent,
-			email: student.email,
-			phone: student.phone,
-			status: student.status === 'Activo' ? 'Activo' : 'Inactivo' // Normalize
-		};
+		form = { name: student.name, grade: student.curso_id, section: student.section, shift: student.shift.toUpperCase(), parent: student.parent, email: student.email, phone: student.phone, status: student.status.includes('Activ') ? 'Activo' : 'Inactivo' };
 		showModal = true;
 	}
 
 	async function handleDelete(id: number) {
-		if (confirm('¿Estás seguro de eliminar este estudiante? Se eliminará permanentemente.')) {
+		if (confirm('¿Eliminar?')) {
 			try {
 				await studentService.delete(id);
-				allStudents = allStudents.filter((s) => s.id !== id);
-				alert('Estudiante eliminado');
+				await loadStudents();
 			} catch (error) {
-				console.error('Error delete:', error);
-				alert('Error al eliminar estudiante');
+				alert('Error');
 			}
-		}
-	}
-
-	$: filteredStudents = allStudents.filter((student) => {
-		const matchesSearch =
-			student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			student.parent.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			student.email.toLowerCase().includes(searchTerm.toLowerCase());
-
-		// Strict Hierarchy Filtering
-		// 1. If Level is selected, student MUST belong to that level
-		let matchesLevel = true;
-		if (selectedLevel) {
-			const allowedGrades = levels[selectedLevel];
-			matchesLevel = allowedGrades.includes(student.grade);
-		}
-
-		// 2. If Grade is selected, student MUST match that grade
-		let matchesGrade = true;
-		if (selectedGrade) {
-			matchesGrade = student.grade === selectedGrade;
-		}
-
-		// 3. If Shift is selected
-		let matchesShift = true;
-		if (selectedShift) {
-			matchesShift = (student.shift || '').toUpperCase() === selectedShift.toUpperCase();
-		}
-
-		// 4. If Section is selected
-		let matchesSection = true;
-		if (selectedSection) {
-			matchesSection = (student.section || '').toUpperCase() === selectedSection.toUpperCase();
-		}
-
-		// Legacy Filter Support (Dropdown) - Updated to actually work
-		const matchesFilterGrade = filterGrade === 'Todos' || student.grade === filterGrade;
-
-		const matchesStatus =
-			filterStatus === 'Todos' ||
-			(student.status || '').toUpperCase() === filterStatus.toUpperCase();
-
-		return (
-			matchesSearch &&
-			matchesStatus &&
-			matchesLevel &&
-			matchesGrade &&
-			matchesShift &&
-			matchesSection &&
-			matchesFilterGrade
-		);
-	});
-
-	function getStatusStyle(status: string) {
-		const normStatus = (status || '').toUpperCase();
-		if (normStatus === 'ACTIVO')
-			return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800';
-		if (normStatus === 'INACTIVO')
-			return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-800';
-		return 'bg-gray-100 text-gray-800 border-gray-200';
-	}
-
-	let viewingStudent: any = null;
-	function handleView(student: any) {
-		viewingStudent = student;
-	}
-
-	function openBatchModal() {
-		showBatchModal = true;
-	}
-
-	function closeBatchModal() {
-		showBatchModal = false;
-		batchFile = null;
-	}
-
-	function handleFileSelect(event: Event) {
-		const target = event.target as HTMLInputElement;
-		if (target.files && target.files.length > 0) {
-			batchFile = target.files[0];
-		}
-	}
-
-	async function handleBatchUpload() {
-		if (!batchFile) return;
-		loading = true;
-		try {
-			// Call the real import API
-			const result = await studentService.importStudents(batchFile);
-			console.log('✅ Estudiantes importados:', result);
-
-			alert(`Archivo procesado exitosamente. ${result.created || 0} estudiante(s) importado(s).`);
-			closeBatchModal();
-
-			// Reload students list to show imported students
-			await loadStudents();
-		} catch (error) {
-			console.error('❌ Error uploading:', error);
-			const errorMessage =
-				error instanceof Error ? error.message : 'Error desconocido al subir el archivo';
-			alert(`Error al subir el archivo: ${errorMessage}`);
-		} finally {
-			loading = false;
 		}
 	}
 </script>
@@ -452,14 +329,21 @@
 		</div>
 		<div class="flex gap-2">
 			<button
-				on:click={openBatchModal}
+				onclick={clearFilters}
+				class="px-6 py-3 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-semibold shadow-lg hover:shadow-xl border border-gray-200 dark:border-gray-700 transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+			>
+				<span class="text-xl">🧹</span>
+				Limpiar Filtros
+			</button>
+			<button
+				onclick={openBatchModal}
 				class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">📤</span>
 				Subir por lote
 			</button>
 			<button
-				on:click={handleCreate}
+				onclick={handleCreate}
 				class="px-6 py-3 bg-gradient-to-r from-[#AA7229] to-[#C4944A] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 			>
 				<span class="text-xl">➕</span>
@@ -474,7 +358,7 @@
 		<div class="flex flex-wrap gap-4">
 			{#each Object.keys(levels) as level}
 				<button
-					on:click={() => selectLevel(level)}
+					onclick={() => selectLevel(level)}
 					class="px-8 py-3 rounded-t-2xl font-bold transition-all text-lg flex-1 md:flex-none border-b-2
 					{selectedLevel === level
 						? 'bg-white dark:bg-gray-800 text-blue-600 border-blue-500 shadow-sm'
@@ -501,7 +385,7 @@
 					<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
 						{#each levels[selectedLevel] as grade}
 							<button
-								on:click={() => selectGrade(grade)}
+								onclick={() => selectGrade(grade)}
 								class="px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
 								{selectedGrade === grade
 									? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:border-blue-500 dark:text-blue-300 shadow-md transform scale-105'
@@ -530,7 +414,7 @@
 								<div class="flex gap-3">
 									{#each availableShifts as shift}
 										<button
-											on:click={() => selectShift(shift)}
+											onclick={() => selectShift(shift)}
 											class="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
 										{selectedShift === shift
 												? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-900/20 dark:border-purple-500 dark:text-purple-300 shadow-md'
@@ -556,7 +440,7 @@
 									<div class="flex gap-3">
 										{#each availableSections as section}
 											<button
-												on:click={() => selectSection(section)}
+												onclick={() => selectSection(section)}
 												class="w-14 h-12 rounded-xl text-lg font-bold transition-all flex items-center justify-center border-2
 											{selectedSection === section
 													? 'bg-pink-50 border-pink-500 text-pink-700 dark:bg-pink-900/20 dark:border-pink-500 dark:text-pink-300 shadow-md'
@@ -580,8 +464,14 @@
 		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#D8E0C7] text-sm font-medium">Total Estudiantes</p>
-					<p class="text-3xl font-bold mt-2">{allStudents.length}</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Estudiantes Filtrados</p>
+					<p class="text-3xl font-bold mt-2">
+						{#if totalStudents < allStudentsRaw.length}
+							{totalStudents} <span class="text-lg font-normal opacity-70">/ {allStudentsRaw.length}</span>
+						{:else}
+							{totalStudents}
+						{/if}
+					</p>
 				</div>
 				<div class="text-5xl opacity-80">🎓</div>
 			</div>
@@ -592,7 +482,7 @@
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Activos</p>
 					<p class="text-3xl font-bold mt-2">
-						{allStudents.filter((s) => s.status === 'Activo').length}
+						{activeCount}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">✓</div>
@@ -604,7 +494,7 @@
 				<div>
 					<p class="text-[#F0E6D2] text-sm font-medium">Inactivos</p>
 					<p class="text-3xl font-bold mt-2">
-						{allStudents.filter((s) => s.status === 'Inactivo').length}
+						{inactiveCount}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">⏸️</div>
@@ -616,7 +506,7 @@
 				<div>
 					<p class="text-[#F0E6D2] text-sm font-medium">Grados</p>
 					<p class="text-3xl font-bold mt-2">
-						{new Set(allStudents.map((s) => s.grade)).size}
+						{gradeCount}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">📚</div>
@@ -638,6 +528,7 @@
 					id="search-input"
 					type="text"
 					bind:value={searchTerm}
+					oninput={handleSearchInput}
 					placeholder="Buscar por nombre, padre o email..."
 					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
 				/>
@@ -684,7 +575,7 @@
 
 	<!-- Students Grid (Card View) -->
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-		{#each filteredStudents as student, i (student.id)}
+		{#each paginatedStudents as student, i (student.id)}
 			<div
 				class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl overflow-hidden border border-gray-200 dark:border-gray-700 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 group"
 			>
@@ -783,21 +674,21 @@
 
 						<div class="flex items-center gap-1">
 							<button
-								on:click={() => handleEdit(student)}
+								onclick={() => handleEdit(student)}
 								class="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
 								title="Editar"
 							>
 								✏️
 							</button>
 							<button
-								on:click={() => handleDelete(student.id)}
+								onclick={() => handleDelete(student.id)}
 								class="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
 								title="Eliminar"
 							>
 								🗑️
 							</button>
 							<button
-								on:click={() => handleView(student)}
+								onclick={() => handleView(student)}
 								class="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg transition-colors"
 								title="Ver Detalles"
 							>
@@ -809,6 +700,20 @@
 			</div>
 		{/each}
 	</div>
+
+	<!-- Pagination -->
+	{#if totalStudents > 0}
+		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+			<Pagination
+				currentPage={currentPage}
+				totalPages={totalPages}
+				totalItems={totalStudents}
+				limit={itemsPerPage}
+				onPageChange={handlePageChange}
+				onLimitChange={handleLimitChange}
+			/>
+		</div>
+	{/if}
 </div>
 
 {#if showModal}
@@ -819,7 +724,7 @@
 			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
 				{editingStudent ? 'Editar Estudiante' : 'Nuevo Estudiante'}
 			</h2>
-			<form class="space-y-4" on:submit|preventDefault={saveStudent}>
+			<form class="space-y-4" onsubmit={saveStudent}>
 				<div class="grid grid-cols-2 gap-4">
 					<div>
 						<label
@@ -861,7 +766,7 @@
 						>
 							<button
 								type="button"
-								on:click={() => (form.shift = 'MAÑANA')}
+								onclick={() => (form.shift = 'MAÑANA')}
 								class={`flex-1 py-2 font-bold transition-all ${form.shift === 'MAÑANA' ? 'bg-orange-100 text-orange-700' : 'bg-white dark:bg-gray-700 text-gray-500'}`}
 							>
 								MAÑANA
@@ -869,7 +774,7 @@
 							<div class="w-px bg-gray-300 dark:bg-gray-600"></div>
 							<button
 								type="button"
-								on:click={() => (form.shift = 'TARDE')}
+								onclick={() => (form.shift = 'TARDE')}
 								class={`flex-1 py-2 font-bold transition-all ${form.shift === 'TARDE' ? 'bg-indigo-100 text-indigo-700' : 'bg-white dark:bg-gray-700 text-gray-500'}`}
 							>
 								TARDE
@@ -948,7 +853,7 @@
 				<div class="flex justify-end gap-4 mt-8">
 					<button
 						type="button"
-						on:click={() => (showModal = false)}
+						onclick={() => (showModal = false)}
 						class="px-6 py-2 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors"
 					>
 						Cancelar
@@ -973,7 +878,7 @@
 		>
 			<button
 				class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
-				on:click={() => (viewingStudent = null)}
+				onclick={() => (viewingStudent = null)}
 			>
 				✕
 			</button>
@@ -1086,7 +991,7 @@
 							accept=".xlsx, .xls"
 							class="hidden"
 							id="file-upload"
-							on:change={handleFileSelect}
+							onchange={handleFileSelect}
 						/>
 						<label
 							for="file-upload"
@@ -1099,13 +1004,13 @@
 
 				<div class="flex gap-3">
 					<button
-						on:click={closeBatchModal}
+						onclick={closeBatchModal}
 						class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-semibold"
 					>
 						Cancelar
 					</button>
 					<button
-						on:click={handleBatchUpload}
+						onclick={handleBatchUpload}
 						disabled={!batchFile || loading}
 						class="flex-1 px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg hover:from-emerald-600 hover:to-green-700 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
 					>
