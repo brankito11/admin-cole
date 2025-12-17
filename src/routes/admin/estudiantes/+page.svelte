@@ -125,20 +125,31 @@
 	async function loadStudents() {
 		isLoadingData = true;
 		try {
-			const skip = (currentPage - 1) * itemsPerPage;
-			const response = await studentService.getAll({ skip, limit: itemsPerPage }) as any;
+			// Call the service with new parameter names from Swagger
+			const response = await studentService.getAll({ 
+				page: currentPage, 
+				per_page: itemsPerPage,
+				q: searchTerm,
+				nivel: selectedLevel,
+				grado: selectedGrade,
+				turno: selectedShift,
+				paralelo: selectedSection
+			}) as any;
 			
 			let rawStudents = [];
 			let total = 0;
 
+			// Handle response format (either raw array or object with data array)
 			if (Array.isArray(response)) {
 				rawStudents = response;
-				// If API doesn't return total, we can only guess if there's more. 
-				// But we'll try to use a safe total if we can't find it.
-				total = rawStudents.length < itemsPerPage ? skip + rawStudents.length : 1000;
+				// If the backend doesn't return total, we estimate based on current fetch
+				// If we got a full page, assume there's at least one more page for now
+				const skip = (currentPage - 1) * itemsPerPage;
+				total = rawStudents.length < itemsPerPage ? skip + rawStudents.length : skip + rawStudents.length + itemsPerPage;
 			} else if (response && response.data) {
 				rawStudents = response.data;
-				total = response.total || response.total_count || response.count || (rawStudents.length < itemsPerPage ? skip + rawStudents.length : 1000);
+				total = response.total || response.total_count || response.count || 
+					((currentPage - 1) * itemsPerPage + rawStudents.length + (rawStudents.length < itemsPerPage ? 0 : itemsPerPage));
 			}
 
 			// Update total for pagination
@@ -464,13 +475,9 @@
 		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#D8E0C7] text-sm font-medium">Estudiantes Filtrados</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Estudiantes Encontrados</p>
 					<p class="text-3xl font-bold mt-2">
-						{#if totalStudents < allStudentsRaw.length}
-							{totalStudents} <span class="text-lg font-normal opacity-70">/ {allStudentsRaw.length}</span>
-						{:else}
-							{totalStudents}
-						{/if}
+						{totalStudents}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">🎓</div>

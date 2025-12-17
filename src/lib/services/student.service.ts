@@ -4,15 +4,29 @@ class StudentService {
 	// Get all students
 	// Get all students with optional matching filters
 	async getAll(filters: any = {}) {
-		const { skip = 0, limit = 10, search = '', ...rest } = filters;
+		const {
+			page = 1,
+			per_page = 10,
+			q = '',
+			nivel = '',
+			grado = '',
+			turno = '',
+			paralelo = '',
+			...rest
+		} = filters;
 
 		// Build query params
-		const params = new URLSearchParams({
-			skip: String(skip),
-			limit: String(limit)
-		});
+		const params = new URLSearchParams();
 
-		if (search) params.append('search', search);
+		// Map parameters to backend expected names
+		params.append('page', String(page));
+		params.append('per_page', String(per_page));
+
+		if (q) params.append('q', q);
+		if (nivel) params.append('nivel', nivel);
+		if (grado) params.append('grado', grado);
+		if (turno) params.append('turno', turno);
+		if (paralelo) params.append('paralelo', paralelo);
 
 		// Append other filters if they exist
 		Object.keys(rest).forEach((key) => {
@@ -20,7 +34,9 @@ class StudentService {
 		});
 
 		try {
-			return await apiCole.get(`/estudiantes/?${params.toString()}`);
+			// Using the standard endpoint from Swagger
+			const response = await apiCole.get(`/estudiantes/?${params.toString()}`);
+			return response;
 		} catch (error) {
 			console.warn('⚠️ /estudiantes failed, attempting fallback to /students');
 			return await apiCole.get(`/students/?${params.toString()}`);
