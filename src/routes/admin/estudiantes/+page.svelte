@@ -758,9 +758,8 @@
 						</select>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-							>Turno</label
-						>
+						<span class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Turno</span>
 						<div
 							class="flex rounded-xl overflow-hidden border border-gray-300 dark:border-gray-600"
 						>

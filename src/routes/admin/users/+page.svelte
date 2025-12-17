@@ -184,11 +184,6 @@
 		'6° Secundaria'
 	];
 
-	// Form data for new admin
-	let newAdmin: CreateAdminCredentials = $state({
-		username: '',
-		password: ''
-	});
 	// Pagination Logic - Client Side (backend /papas no soporta paginación)
 	let totalPages = $derived(Math.ceil(totalUsers / itemsPerPage));
 	
@@ -515,9 +510,9 @@
 					<div
 						role="region"
 						aria-label="Zona de carga de archivos"
-						on:dragover={handleDragOver}
-						on:dragleave={handleDragLeave}
-						on:drop={handleDrop}
+						ondragover={handleDragOver}
+						ondragleave={handleDragLeave}
+						ondrop={handleDrop}
 						class="border-2 border-dashed transition-colors duration-200 rounded-xl p-8 text-center bg-gray-50 dark:bg-gray-700/50
 						{isDragging
 							? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/10'
@@ -786,7 +781,7 @@
 			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-8 transform transition-all"
 		>
 			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Nuevo Administrador</h2>
-			<form on:submit|onsubmit={handleCreateAdmin} class="space-y-4">
+			<form onsubmit={handleCreateAdmin} class="space-y-4">
 				<div>
 					<label
 						for="admin-username"
@@ -854,7 +849,7 @@
 			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
 				<span class="text-3xl">👨‍👩‍👧</span> Nuevo Padre
 			</h2>
-			<form on:submit|onsubmit={handleCreateParent} class="space-y-4">
+			<form onsubmit={handleCreateParent} class="space-y-4">
 				<div class="grid grid-cols-2 gap-4">
 					<div>
 						<label
@@ -1045,7 +1040,7 @@
 					<h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
 						<span class="text-xl">➕</span> Agregar Nuevo Hijo
 					</h3>
-					<form on:submit|onsubmit={handleAddChild} class="space-y-4">
+					<form onsubmit={handleAddChild} class="space-y-4">
 						<div class="grid grid-cols-2 gap-4">
 							<div>
 								<label
