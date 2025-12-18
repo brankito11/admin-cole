@@ -21,7 +21,7 @@ class LicenciaService {
 			if (rest[key]) params.append(key, rest[key]);
 		});
 
-		return await apiCole.get(`/libretas/?${params.toString()}`);
+		return await apiCole.get(`/licencias/?${params.toString()}`);
 	}
 
 	/**

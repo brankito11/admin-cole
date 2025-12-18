@@ -10,3 +10,4 @@ export * from './reunion.service';
 export * from './student.service';
 export * from './user.service';
 export * from './api.service';
+export * from './curso.service';

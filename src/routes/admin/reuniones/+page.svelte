@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { reunionService } from '$lib/services';
+	import { reunionService, cursoService } from '$lib/services';
 	import { AUTH_TOKEN_KEY } from '$lib/constants';
 	import type { Reunion, ReunionCreate, ReunionUpdate } from '$lib/interfaces';
+	import CourseFilter from '$lib/components/CourseFilter.svelte';
 
 	let reuniones: Reunion[] = $state([]);
 	let loading = $state(false);
@@ -10,6 +11,14 @@
 	let searchTerm = $state('');
 	let filterType = $state('Todos');
 	let filterStatus = $state('Todos');
+
+	// Level, Grade, Shift, Section Interaction
+	let courses: any[] = $state([]);
+	let levels: Record<string, string[]> = $state({});
+	let selectedLevel = $state('');
+	let selectedGrade = $state('');
+	let selectedShift = $state('');
+	let selectedSection = $state('');
 
 	// Modal states
 	let showModal = $state(false);
@@ -27,9 +36,33 @@
 		hora_conclusion: ''
 	});
 
-	onMount(() => {
-		loadReuniones();
+	onMount(async () => {
+		await initData();
 	});
+
+	async function initData() {
+		try {
+			const res = (await cursoService.getAll(0, 1000)) as any;
+			courses = Array.isArray(res) ? res : res.data || [];
+
+			const newLevels: Record<string, Set<string>> = {};
+			courses.forEach((c) => {
+				const niv = c.nivel || 'Otr';
+				if (!newLevels[niv]) newLevels[niv] = new Set();
+				newLevels[niv].add(c.nombre);
+			});
+
+			levels = {};
+			Object.keys(newLevels).forEach((k) => {
+				levels[k] = Array.from(newLevels[k]).sort();
+			});
+
+			await loadReuniones();
+		} catch (e) {
+			console.error('Init reuniones error:', e);
+			await loadReuniones();
+		}
+	}
 
 	async function loadReuniones() {
 		loading = true;
@@ -98,7 +131,7 @@
 			closeModal();
 			await loadReuniones();
 		} catch (err: any) {
-			console.error("Submit error", err);
+			console.error('Submit error', err);
 			error = err.message || 'Error al guardar reunión';
 		} finally {
 			loading = false;
@@ -132,7 +165,7 @@
 	}
 
 	const filteredReuniones = $derived(
-		reuniones.filter((r) => {
+		reuniones.filter((r: any) => {
 			const matchesSearch =
 				r.nombre_reunion.toLowerCase().includes(searchTerm.toLowerCase()) ||
 				r.tema.toLowerCase().includes(searchTerm.toLowerCase());
@@ -148,9 +181,24 @@
 
 			const matchesStatus = filterStatus === 'Todos' || status === filterStatus;
 
-			return matchesSearch && matchesType && matchesStatus;
+			// Hierarchy filtering (if applicable to meeting data)
+			// Assuming r might have curso_id or similar. If not, this is a placeholder
+			// for future consistency where meetings are tied to courses.
+			let matchesHierarchy = true;
+			if (selectedLevel && r.nivel)
+				matchesHierarchy =
+					matchesHierarchy && r.nivel.toLowerCase() === selectedLevel.toLowerCase();
+			if (selectedGrade && r.grado)
+				matchesHierarchy =
+					matchesHierarchy && r.grado.toLowerCase() === selectedGrade.toLowerCase();
+
+			return matchesSearch && matchesType && matchesStatus && matchesHierarchy;
 		})
 	);
+
+	function handleFilterChange() {
+		// page = 1; (if paginated)
+	}
 
 	const programadas = $derived(
 		reuniones.filter((r) => {
@@ -191,8 +239,12 @@
 	<!-- Header -->
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
-			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Reuniones y Eventos</h1>
-			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra todas las actividades escolares</p>
+			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">
+				Gestión de Reuniones y Eventos
+			</h1>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">
+				Administra todas las actividades escolares
+			</p>
 		</div>
 		<button
 			onclick={openCreateModal}
@@ -203,6 +255,17 @@
 		</button>
 	</div>
 
+	<!-- Hierarchy Filter Integration -->
+	<CourseFilter
+		{levels}
+		{courses}
+		bind:selectedLevel
+		bind:selectedGrade
+		bind:selectedShift
+		bind:selectedSection
+		onFilterChange={handleFilterChange}
+	/>
+
 	<!-- Error Message -->
 	{#if error}
 		<div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg animate-shake" role="alert">
@@ -212,9 +275,7 @@
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-		<div
-			class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg"
-		>
+		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Programadas</p>
@@ -246,11 +307,17 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
+	>
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
+				<label
+					for="search-meeting"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label
+				>
 				<input
+					id="search-meeting"
 					type="text"
 					bind:value={searchTerm}
 					placeholder="Buscar por título o tema..."
@@ -258,8 +325,13 @@
 				/>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Tema</label>
+				<label
+					for="theme-filter"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Filtrar por Tema</label
+				>
 				<select
+					id="theme-filter"
 					bind:value={filterType}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				>
@@ -267,8 +339,13 @@
 				</select>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Estado</label>
+				<label
+					for="status-meeting"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Filtrar por Estado</label
+				>
 				<select
+					id="status-meeting"
 					bind:value={filterStatus}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				>
@@ -281,7 +358,9 @@
 	</div>
 
 	<!-- Meetings Table -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+	>
 		{#if loading}
 			<div class="flex items-center justify-center py-20">
 				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -327,8 +406,12 @@
 						{#each filteredReuniones as reunion}
 							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
 								<td class="px-6 py-4">
-									<div class="text-sm font-semibold text-gray-900 dark:text-white">{reunion.nombre_reunion}</div>
-									<div class="text-xs text-gray-500 dark:text-gray-400">ID: {reunion._id.slice(-8)}</div>
+									<div class="text-sm font-semibold text-gray-900 dark:text-white">
+										{reunion.nombre_reunion}
+									</div>
+									<div class="text-xs text-gray-500 dark:text-gray-400">
+										ID: {reunion._id.slice(-8)}
+									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<span

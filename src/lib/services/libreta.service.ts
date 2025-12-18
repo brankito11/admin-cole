@@ -1,8 +1,28 @@
 import { apiCole } from '$lib/config/apiCole.config';
 
+// Type definitions for Libreta API responses
+export interface Libreta {
+	id: number;
+	student: string;
+	grade: string;
+	section: string;
+	period: string;
+	average: number;
+	status: string;
+	[key: string]: any; // Allow additional properties
+}
+
+export interface LibretaListResponse {
+	data: Libreta[];
+	total: number;
+	total_pages: number;
+	page: number;
+	per_page: number;
+}
+
 class LibretaService {
 	// Get all libretas with optional filters and pagination
-	async getAll(filters: any = {}) {
+	async getAll(filters: any = {}): Promise<LibretaListResponse | Libreta[]> {
 		const { page = 1, per_page = 10, q = '', ...rest } = filters;
 
 		// Build query params
@@ -18,7 +38,7 @@ class LibretaService {
 			if (rest[key]) params.append(key, rest[key]);
 		});
 
-		return await apiCole.get(`/libretas/?${params.toString()}`);
+		return await apiCole.get<LibretaListResponse | Libreta[]>(`/libretas/?${params.toString()}`);
 	}
 
 	// Create new libreta

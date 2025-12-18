@@ -1,7 +1,20 @@
 <script lang="ts">
-	let showModal = false;
-	let editingLicense: any = null;
-	let formData = {
+	import { onMount } from 'svelte';
+	import { licenciaService } from '$lib/services/licencia.service';
+	import { cursoService } from '$lib/services/curso.service';
+	import Pagination from '$lib/components/pagination.svelte';
+	import CourseFilter from '$lib/components/CourseFilter.svelte';
+
+	let showModal = $state(false);
+	let editingLicense: any = $state(null);
+	let loading = $state(false);
+	let isLoadingData = $state(true);
+
+	let courses: any[] = $state([]);
+	let courseMap: any = $state({});
+	let levels: Record<string, string[]> = $state({});
+
+	let formData = $state({
 		student: '',
 		parent: '',
 		type: 'Permiso Médico',
@@ -10,66 +23,129 @@
 		status: 'Pendiente',
 		reason: '',
 		grade: ''
-	};
-
-	let allLicenses = [
-		{
-			id: 1,
-			student: 'Juan Pérez',
-			parent: 'María Pérez',
-			type: 'Permiso Médico',
-			date: '2024-11-25',
-			duration: '1 día',
-			status: 'Aprobada',
-			reason: 'Cita médica',
-			grade: 'Quinto Grado'
-		},
-		{
-			id: 2,
-			student: 'Ana García',
-			parent: 'Carlos García',
-			type: 'Permiso Familiar',
-			date: '2024-10-15',
-			duration: '2 días',
-			status: 'Aprobada',
-			reason: 'Viaje familiar',
-			grade: 'Tercer Grado'
-		},
-		{
-			id: 3,
-			student: 'Pedro López',
-			parent: 'Laura López',
-			type: 'Permiso Personal',
-			date: '2024-12-05',
-			duration: '1 día',
-			status: 'Pendiente',
-			reason: 'Asunto personal',
-			grade: 'Cuarto Grado'
-		},
-		{
-			id: 4,
-			student: 'María Rodríguez',
-			parent: 'José Rodríguez',
-			type: 'Permiso Médico',
-			date: '2024-11-20',
-			duration: '3 días',
-			status: 'Rechazada',
-			reason: 'Tratamiento médico',
-			grade: 'Sexto Grado'
-		}
-	];
-
-	let searchTerm = '';
-	let filterStatus = 'Todos';
-
-	$: filteredLicenses = allLicenses.filter((license) => {
-		const matchesSearch =
-			license.student.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			license.parent.toLowerCase().includes(searchTerm.toLowerCase()) ||
-			license.type.toLowerCase().includes(searchTerm.toLowerCase());
-		const matchesStatus = filterStatus === 'Todos' || license.status === filterStatus;
-		return matchesSearch && matchesStatus;
 	});
+
+	let allLicenses: any[] = $state([]);
+	let searchTerm = $state('');
+	let filterStatus = $state('Todos');
+
+	// Level, Grade, Shift, Section Interaction
+	let selectedLevel = $state('');
+	let selectedGrade = $state('');
+	let selectedShift = $state('');
+	let selectedSection = $state('');
+
+	// Pagination
+	let page = $state(1);
+	let perPage = $state(10);
+	let total = $state(0);
+	let totalPages = $state(0);
+
+	const filteredLicenses = $derived.by(() => {
+		let filtered = allLicenses;
+
+		if (searchTerm) {
+			const q = searchTerm.toLowerCase();
+			filtered = filtered.filter(
+				(license) =>
+					(license.student || '').toLowerCase().includes(q) ||
+					(license.parent || '').toLowerCase().includes(q) ||
+					(license.type || '').toLowerCase().includes(q)
+			);
+		}
+
+		if (filterStatus !== 'Todos') {
+			filtered = filtered.filter((license) => license.status === filterStatus);
+		}
+
+		if (selectedLevel) {
+			filtered = filtered.filter(
+				(l) => (l.nivel || '').toLowerCase() === selectedLevel.toLowerCase()
+			);
+		}
+		if (selectedGrade) {
+			filtered = filtered.filter(
+				(l) => (l.grade || '').toLowerCase() === selectedGrade.toLowerCase()
+			);
+		}
+		if (selectedShift) {
+			filtered = filtered.filter(
+				(l) => (l.shift || '').toLowerCase() === selectedShift.toLowerCase()
+			);
+		}
+		if (selectedSection) {
+			filtered = filtered.filter(
+				(l) => (l.section || '').toLowerCase() === selectedSection.toLowerCase()
+			);
+		}
+
+		return filtered;
+	});
+
+	let paginatedLicenses = $derived(filteredLicenses.slice((page - 1) * perPage, page * perPage));
+
+	function handleFilterChange() {
+		page = 1;
+	}
+
+	onMount(async () => {
+		await initData();
+	});
+
+	async function initData() {
+		isLoadingData = true;
+		try {
+			const res = (await cursoService.getAll(0, 1000)) as any;
+			courses = Array.isArray(res) ? res : res.data || [];
+
+			const newLevels: Record<string, Set<string>> = {};
+			courses.forEach((c) => {
+				const cid = String(c._id);
+				courseMap[cid] = c;
+				const niv = c.nivel || 'Otr';
+				if (!newLevels[niv]) newLevels[niv] = new Set();
+				newLevels[niv].add(c.nombre);
+			});
+
+			levels = {};
+			Object.keys(newLevels).forEach((k) => {
+				levels[k] = Array.from(newLevels[k]).sort();
+			});
+
+			await loadLicenses();
+		} catch (e) {
+			console.error('Init licencias error:', e);
+		} finally {
+			isLoadingData = false;
+		}
+	}
+
+	async function loadLicenses() {
+		loading = true;
+		try {
+			const response = await licenciaService.getAll({ page: 1, per_page: 500 });
+			const rawData = Array.isArray(response) ? response : (response as any).data || [];
+
+			allLicenses = rawData.map((l: any) => {
+				const c = courseMap[l.curso_id || ''];
+				return {
+					...l,
+					student: l.estudiante_nombre || l.student || 'S/N',
+					parent: l.padre_nombre || l.parent || 'S/N',
+					nivel: c ? c.nivel : l.nivel || 'S/G',
+					grade: c ? c.nombre : l.grado || 'S/G',
+					shift: c ? c.turno : l.turno || 'M',
+					section: c ? c.paralelo : l.seccion || 'A'
+				};
+			});
+			total = allLicenses.length;
+			totalPages = Math.ceil(total / perPage);
+		} catch (e) {
+			console.error('Load licencias error:', e);
+		} finally {
+			loading = false;
+		}
+	}
 
 	function getStatusStyle(status: string) {
 		if (status === 'Aprobada') return 'bg-green-100 text-green-800 border-green-200';
@@ -98,33 +174,32 @@
 		showModal = true;
 	}
 
-	function handleDelete(id: number) {
-		if (confirm('¿Estás seguro de eliminar esta licencia?')) {
-			allLicenses = allLicenses.filter((l) => l.id !== id);
-		}
+	async function handleApprove(id: number) {
+		// await licenciaService.approve(id)
+		await loadLicenses();
 	}
 
-	function handleApprove(id: number) {
-		allLicenses = allLicenses.map((l) => (l.id === id ? { ...l, status: 'Aprobada' } : l));
+	async function handleReject(id: number) {
+		// await licenciaService.reject(id)
+		await loadLicenses();
 	}
 
-	function handleReject(id: number) {
-		allLicenses = allLicenses.map((l) => (l.id === id ? { ...l, status: 'Rechazada' } : l));
-	}
-
-	function handleSubmit(e: Event) {
+	async function handleSubmit(e: Event) {
 		e.preventDefault();
-
-		if (editingLicense) {
-			allLicenses = allLicenses.map((l) =>
-				l.id === editingLicense.id ? { ...formData, id: l.id } : l
-			);
-		} else {
-			const newId = Math.max(...allLicenses.map((l) => l.id), 0) + 1;
-			allLicenses = [...allLicenses, { ...formData, id: newId }];
+		loading = true;
+		try {
+			if (editingLicense) {
+				// await licenciaService.update(...)
+			} else {
+				await licenciaService.createLicencia(formData as any);
+			}
+			showModal = false;
+			await loadLicenses();
+		} catch (error) {
+			console.error('Error saving license:', error);
+		} finally {
+			loading = false;
 		}
-
-		showModal = false;
 	}
 </script>
 
@@ -132,10 +207,12 @@
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Licencias</h1>
-			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra todas las solicitudes de permisos</p>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">
+				Administra todas las solicitudes de permisos
+			</p>
 		</div>
 		<button
-			on:click={handleCreate}
+			onclick={handleCreate}
 			class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
@@ -143,11 +220,20 @@
 		</button>
 	</div>
 
+	<!-- Hierarchy Filter Integration -->
+	<CourseFilter
+		{levels}
+		{courses}
+		bind:selectedLevel
+		bind:selectedGrade
+		bind:selectedShift
+		bind:selectedSection
+		onFilterChange={handleFilterChange}
+	/>
+
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-		<div
-			class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg"
-		>
+		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Aprobadas</p>
@@ -159,9 +245,7 @@
 			</div>
 		</div>
 
-		<div
-			class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg"
-		>
+		<div class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#F0E6D2] text-sm font-medium">Pendientes</p>
@@ -197,11 +281,17 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
+	>
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
+				<label
+					for="search-license"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label
+				>
 				<input
+					id="search-license"
 					type="text"
 					bind:value={searchTerm}
 					placeholder="Buscar por estudiante, padre o tipo..."
@@ -209,8 +299,13 @@
 				/>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Estado</label>
+				<label
+					for="status-license"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Filtrar por Estado</label
+				>
 				<select
+					id="status-license"
 					bind:value={filterStatus}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				>
@@ -224,51 +319,69 @@
 	</div>
 
 	<!-- Licenses Table -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+	>
 		<div class="overflow-x-auto">
 			<table class="w-full">
 				<thead class="bg-gray-50 dark:bg-gray-700">
 					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>ID</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estudiante</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Padre/Tutor</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Tipo</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Fecha</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Duración</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estado</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Acciones</th
 						>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200">
-					{#each filteredLicenses as license}
+					{#each paginatedLicenses as license}
 						<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-							<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
+							<td
+								class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
 								>#{license.id}</td
 							>
-							<td class="px-6 py-4 whitespace-nowrap">
-								<div class="text-sm font-semibold text-gray-900 dark:text-white">{license.student}</div>
-								<div class="text-xs text-gray-500 dark:text-gray-400">{license.grade}</div>
-							</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{license.parent}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{license.type}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{license.date}</td>
-							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{license.duration}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
+								>{license.student}</td
+							>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
+								>{license.parent}</td
+							>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
+								>{license.type}</td
+							>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
+								>{license.date}</td
+							>
+							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
+								>{license.duration}</td
+							>
 							<td class="px-6 py-4 whitespace-nowrap">
 								<span
 									class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
@@ -280,34 +393,14 @@
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap text-sm">
 								<div class="flex items-center gap-2">
-									{#if license.status === 'Pendiente'}
-										<button
-											on:click={() => handleApprove(license.id)}
-											class="text-green-600 hover:text-green-900 font-medium"
-											title="Aprobar"
-										>
-											✓
-										</button>
-										<button
-											on:click={() => handleReject(license.id)}
-											class="text-red-600 hover:text-red-900 font-medium"
-											title="Rechazar"
-										>
-											✗
-										</button>
-									{/if}
 									<button
-										on:click={() => handleEdit(license)}
+										onclick={() => handleEdit(license)}
 										class="text-blue-600 hover:text-blue-900 font-medium"
 										title="Editar"
 									>
 										✏️
 									</button>
-									<button
-										on:click={() => handleDelete(license.id)}
-										class="text-red-600 hover:text-red-900 font-medium"
-										title="Eliminar"
-									>
+									<button class="text-red-600 hover:text-red-900 font-medium" title="Eliminar">
 										🗑️
 									</button>
 								</div>
@@ -317,40 +410,64 @@
 				</tbody>
 			</table>
 		</div>
+		<!-- Pagination -->
+		<Pagination
+			currentPage={page}
+			{totalPages}
+			totalItems={total}
+			limit={perPage}
+			onPageChange={(p) => (page = p)}
+		/>
 	</div>
 </div>
 
 {#if showModal}
 	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-		<div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8">
-			<h2 class="text-2xl font-bold text-gray-900 mb-6">
-				{editingLicense ? 'Editar Licencia' : 'Nueva Licencia'}
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up"
+		>
+			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+				{editingLicense ? 'Editar Licencia' : 'Registrar Nueva Licencia'}
 			</h2>
-			<form on:submit={handleSubmit} class="space-y-4">
+			<form onsubmit={handleSubmit} class="space-y-4">
 				<div class="grid grid-cols-2 gap-4">
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Estudiante</label>
+						<label
+							for="student-name"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Estudiante</label
+						>
 						<input
+							id="student-name"
 							type="text"
 							bind:value={formData.student}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Padre/Tutor</label>
+						<label
+							for="parent-name"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Padre/Tutor</label
+						>
 						<input
+							id="parent-name"
 							type="text"
 							bind:value={formData.parent}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Tipo de Permiso</label>
+						<label
+							for="license-type"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Tipo</label
+						>
 						<select
+							id="license-type"
 							bind:value={formData.type}
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						>
 							<option>Permiso Médico</option>
 							<option>Permiso Familiar</option>
@@ -358,50 +475,72 @@
 						</select>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Grado</label>
+						<label
+							for="license-grade"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Grado</label
+						>
 						<input
+							id="license-grade"
 							type="text"
 							bind:value={formData.grade}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Fecha</label>
+						<label
+							for="license-date"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Fecha</label
+						>
 						<input
+							id="license-date"
 							type="date"
 							bind:value={formData.date}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Duración</label>
+						<label
+							for="license-duration"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Duración</label
+						>
 						<input
+							id="license-duration"
 							type="text"
 							bind:value={formData.duration}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-							placeholder="Ej: 1 día, 2 días"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						/>
 					</div>
 					<div class="col-span-2">
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Motivo</label>
+						<label
+							for="license-reason"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Motivo</label
+						>
 						<textarea
+							id="license-reason"
 							bind:value={formData.reason}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
 							rows="3"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						></textarea>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 mb-2">Estado</label>
-						<select
-							bind:value={formData.status}
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
+						<label
+							for="license-status"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Estado</label
 						>
-							<option>Pendiente</option>
+						<select
+							id="license-status"
+							bind:value={formData.status}
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+						>
 							<option>Aprobada</option>
+							<option>Pendiente</option>
 							<option>Rechazada</option>
 						</select>
 					</div>
@@ -409,16 +548,17 @@
 				<div class="flex justify-end gap-4 mt-6">
 					<button
 						type="button"
-						on:click={() => (showModal = false)}
-						class="px-6 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold"
+						onclick={() => (showModal = false)}
+						class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold transition-colors"
 					>
 						Cancelar
 					</button>
 					<button
 						type="submit"
-						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg"
+						disabled={loading}
+						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
 					>
-						{editingLicense ? 'Actualizar' : 'Guardar'}
+						{loading ? 'Guardando...' : editingLicense ? 'Actualizar' : 'Guardar'}
 					</button>
 				</div>
 			</form>
@@ -441,7 +581,3 @@
 		}
 	}
 </style>
-
-
-
-

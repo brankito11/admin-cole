@@ -2,16 +2,18 @@
 	import { onMount } from 'svelte';
 	import { pagoService } from '$lib/services';
 	import { cursoService } from '$lib/services/curso.service';
+	import Pagination from '$lib/components/pagination.svelte';
+	import CourseFilter from '$lib/components/CourseFilter.svelte';
 
-	let showModal = false;
-	let editingPayment: any = null;
-	let courses: any[] = [];
-	let courseMap: any = {};
-	let loading = false;
-	let isLoadingData = true;
+	let showModal = $state(false);
+	let editingPayment: any = $state(null);
+	let courses: any[] = $state([]);
+	let courseMap: any = $state({});
+	let loading = $state(false);
+	let isLoadingData = $state(true);
 
 	// Form State
-	let formData = {
+	let formData = $state({
 		student: '',
 		parent: '',
 		concept: '',
@@ -19,47 +21,70 @@
 		date: '',
 		status: 'Pendiente',
 		grade: ''
-	};
+	});
 
 	// Pagination
-	let page = 1;
-	let perPage = 10;
-	let total = 0;
-	let totalPages = 0;
+	let page = $state(1);
+	let perPage = $state(10);
+	let total = $state(0);
+	let totalPages = $state(0);
 
-	let searchTerm = '';
-	let filterStatus = 'Todos';
-	let filterDate = '';
+	let searchTerm = $state('');
+	let filterStatus = $state('Todos');
+	let filterDate = $state('');
 
 	// Level, Grade, Shift, Section Interaction
-	let selectedLevel = '';
-	let selectedGrade = '';
-	let selectedShift = '';
-	let selectedSection = '';
+	let selectedLevel = $state('');
+	let selectedGrade = $state('');
+	let selectedShift = $state('');
+	let selectedSection = $state('');
 
-	// Dynamic Filter Data
-	let levels: Record<string, string[]> = {};
+	let allPayments: any[] = $state([]);
+	let levels: Record<string, string[]> = $state({});
 
-	// These will be derived reactive variables based on selection
-	$: availableShifts = getAvailableShifts(selectedGrade);
-	$: availableSections = getAvailableSections(selectedGrade, selectedShift);
+	const filteredPayments = $derived.by(() => {
+		let filtered = allPayments;
 
-	function getAvailableShifts(grade: string) {
-		if (!grade) return [];
-		const relevantCourses = courses.filter((c) => c.nombre === grade);
-		return [...new Set(relevantCourses.map((c) => c.turno))].sort();
-	}
-
-	function getAvailableSections(grade: string, shift: string) {
-		if (!grade) return [];
-		let relevantCourses = courses.filter((c) => c.nombre === grade);
-		if (shift) {
-			relevantCourses = relevantCourses.filter((c) => c.turno === shift);
+		if (searchTerm) {
+			const q = searchTerm.toLowerCase();
+			filtered = filtered.filter(
+				(p) =>
+					(p.student_name || '').toLowerCase().includes(q) ||
+					(p.parent_name || '').toLowerCase().includes(q) ||
+					(p.concept || '').toLowerCase().includes(q)
+			);
 		}
-		return [...new Set(relevantCourses.map((c) => c.paralelo))].sort();
-	}
 
-	let allPayments: any[] = [];
+		if (filterStatus !== 'Todos') {
+			filtered = filtered.filter((p) => p.status === filterStatus);
+		}
+
+		if (selectedLevel) {
+			filtered = filtered.filter(
+				(p) => (p.nivel || '').toLowerCase() === selectedLevel.toLowerCase()
+			);
+		}
+
+		if (selectedGrade) {
+			filtered = filtered.filter(
+				(p) => (p.grade || '').toLowerCase() === selectedGrade.toLowerCase()
+			);
+		}
+
+		if (selectedShift) {
+			filtered = filtered.filter(
+				(p) => (p.shift || '').toLowerCase() === selectedShift.toLowerCase()
+			);
+		}
+
+		if (selectedSection) {
+			filtered = filtered.filter(
+				(p) => (p.section || '').toLowerCase() === selectedSection.toLowerCase()
+			);
+		}
+
+		return filtered;
+	});
 
 	onMount(() => {
 		initData();
@@ -101,7 +126,7 @@
 	async function initData() {
 		isLoadingData = true;
 		try {
-			const res = await cursoService.getAll(0, 1000);
+			const res = (await cursoService.getAll(0, 1000)) as any;
 			courses = Array.isArray(res) ? res : res.data || [];
 
 			// Build Course Map and Dynamic Levels
@@ -157,7 +182,7 @@
 
 			console.log('Fetching payments with filters:', filters);
 
-			const response = await pagoService.getAll(filters);
+			const response = (await pagoService.getAll(filters)) as any;
 			console.log('API Response for Payments:', response);
 
 			// Handle pagination response
@@ -168,7 +193,7 @@
 			} else {
 				allPayments = Array.isArray(response) ? response : [];
 				total = allPayments.length;
-				totalPages = 1;
+				totalPages = Math.ceil(total / perPage);
 			}
 		} catch (error) {
 			console.error('Error loading payments:', error);
@@ -178,46 +203,13 @@
 		}
 	}
 
-	function selectLevel(level: string) {
-		selectedLevel = level;
-		selectedGrade = '';
-		selectedShift = '';
-		selectedSection = '';
+	function handleFilterChange() {
 		page = 1;
-	}
-
-	function selectGrade(grade: string) {
-		selectedGrade = grade;
-		selectedShift = '';
-		selectedSection = '';
-		page = 1;
-	}
-
-	function selectShift(shift: string) {
-		selectedShift = shift;
-		selectedSection = '';
-		page = 1;
-	}
-
-	function selectSection(section: string) {
-		selectedSection = section;
-		page = 1;
+		loadPayments();
 	}
 
 	// Trigger loadPayments when filters change (Debounce search)
 	let searchTimeout: any;
-	$: {
-		const deps = [
-			page,
-			selectedLevel,
-			selectedGrade,
-			selectedShift,
-			selectedSection,
-			filterStatus,
-			filterDate
-		];
-		loadPayments();
-	}
 
 	function handleSearchInput() {
 		clearTimeout(searchTimeout);
@@ -227,15 +219,21 @@
 		}, 300);
 	}
 
-	$: totalPaid = allPayments
-		.filter((p) => p.status === 'Pagado')
-		.reduce((sum, p) => sum + (p.amount || 0), 0);
-	$: totalPending = allPayments
-		.filter((p) => p.status === 'Pendiente')
-		.reduce((sum, p) => sum + (p.amount || 0), 0);
-	$: totalOverdue = allPayments
-		.filter((p) => p.status === 'Vencido')
-		.reduce((sum, p) => sum + (p.amount || 0), 0);
+	let totalPaid = $derived(
+		filteredPayments
+			.filter((p) => p.status === 'Pagado')
+			.reduce((sum, p) => sum + (p.amount || 0), 0)
+	);
+	let totalPending = $derived(
+		filteredPayments
+			.filter((p) => p.status === 'Pendiente')
+			.reduce((sum, p) => sum + (p.amount || 0), 0)
+	);
+	let totalOverdue = $derived(
+		filteredPayments
+			.filter((p) => p.status === 'Vencido')
+			.reduce((sum, p) => sum + (p.amount || 0), 0)
+	);
 
 	function getStatusStyle(status: string) {
 		if (status === 'Pagado') return 'bg-green-100 text-green-800 border-green-200';
@@ -305,10 +303,12 @@
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Pagos</h1>
-			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra todos los pagos de los estudiantes</p>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">
+				Administra todos los pagos de los estudiantes
+			</p>
 		</div>
 		<button
-			on:click={handleCreate}
+			onclick={handleCreate}
 			class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
@@ -317,113 +317,19 @@
 	</div>
 
 	<!-- Hierarchy Controls -->
-	<div class="space-y-4">
-		<!-- Level Tabs -->
-		<div class="flex flex-wrap gap-4">
-			{#each Object.keys(levels) as level}
-				<button
-					on:click={() => selectLevel(level)}
-					class="px-8 py-3 rounded-t-2xl font-bold transition-all text-lg flex-1 md:flex-none border-b-2
-					{selectedLevel === level
-						? 'bg-white dark:bg-gray-800 text-blue-600 border-blue-500 shadow-sm'
-						: 'bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-transparent hover:bg-gray-200 dark:hover:bg-gray-700'}"
-				>
-					{level}
-				</button>
-			{/each}
-		</div>
-
-		<!-- Unified Selection Container -->
-		{#if selectedLevel}
-			<div
-				class="bg-white dark:bg-gray-800 p-6 rounded-b-2xl rounded-tr-2xl shadow-xl border border-gray-200 dark:border-gray-700 animate-slide-up space-y-8 relative"
-			>
-				<!-- Grades -->
-				<div>
-					<h3
-						class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
-					>
-						<span class="w-2 h-2 rounded-full bg-blue-500"></span>
-						Selecciona el Curso
-					</h3>
-					<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-						{#each levels[selectedLevel] as grade}
-							<button
-								on:click={() => selectGrade(grade)}
-								class="px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
-								{selectedGrade === grade
-									? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:border-blue-500 dark:text-blue-300 shadow-md transform scale-105'
-									: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
-							>
-								{grade}
-							</button>
-						{/each}
-					</div>
-				</div>
-
-				<!-- Turno & Paralelo (Side by Side if desktop) -->
-				{#if selectedGrade}
-					<div
-						class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-gray-100 dark:border-gray-700"
-					>
-						<!-- Shift Scope -->
-						<div class="animate-fade-in">
-							<h3
-								class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
-							>
-								<span class="w-2 h-2 rounded-full bg-purple-500"></span>
-								Turno
-							</h3>
-							<div class="flex gap-3">
-								{#each availableShifts as shift}
-									<button
-										on:click={() => selectShift(shift)}
-										class="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
-										{selectedShift === shift
-											? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-900/20 dark:border-purple-500 dark:text-purple-300 shadow-md'
-											: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
-									>
-										{shift}
-									</button>
-								{/each}
-							</div>
-						</div>
-
-						<!-- Section Scope -->
-						{#if selectedShift}
-							<div class="animate-fade-in">
-								<h3
-									class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
-								>
-									<span class="w-2 h-2 rounded-full bg-pink-500"></span>
-									Paralelo
-								</h3>
-								<div class="flex gap-3">
-									{#each availableSections as section}
-										<button
-											on:click={() => selectSection(section)}
-											class="w-14 h-12 rounded-xl text-lg font-bold transition-all flex items-center justify-center border-2
-											{selectedSection === section
-												? 'bg-pink-50 border-pink-500 text-pink-700 dark:bg-pink-900/20 dark:border-pink-500 dark:text-pink-300 shadow-md'
-												: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
-										>
-											{section}
-										</button>
-									{/each}
-								</div>
-							</div>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		{/if}
-	</div>
+	<CourseFilter
+		{levels}
+		{courses}
+		bind:selectedLevel
+		bind:selectedGrade
+		bind:selectedShift
+		bind:selectedSection
+		onFilterChange={handleFilterChange}
+	/>
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-		<div
-			class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg"
-		>
+		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Total Pagado</p>
@@ -433,9 +339,7 @@
 			</div>
 		</div>
 
-		<div
-			class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg"
-		>
+		<div class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#F0E6D2] text-sm font-medium">Pendiente</p>
@@ -467,21 +371,32 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
+	>
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
+				<label
+					for="search-input"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label
+				>
 				<input
+					id="search-input"
 					type="text"
 					bind:value={searchTerm}
-					on:input={handleSearchInput}
+					oninput={handleSearchInput}
 					placeholder="Buscar por estudiante, padre o concepto..."
 					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
 				/>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Estado</label>
+				<label
+					for="status-filter"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Filtrar por Estado</label
+				>
 				<select
+					id="status-filter"
 					bind:value={filterStatus}
 					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 				>
@@ -492,8 +407,13 @@
 				</select>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Fecha</label>
+				<label
+					for="date-filter"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Filtrar por Fecha</label
+				>
 				<input
+					id="date-filter"
 					type="date"
 					bind:value={filterDate}
 					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
@@ -503,7 +423,9 @@
 	</div>
 
 	<!-- Payments Table -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+	>
 		{#if isLoadingData}
 			<div class="flex items-center justify-center py-20">
 				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -518,28 +440,36 @@
 				<table class="w-full">
 					<thead class="bg-gray-50 dark:bg-gray-700">
 						<tr>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>ID</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Estudiante</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Padre/Tutor</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Concepto</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Fecha</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Monto</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Estado</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Acciones</th
 							>
 						</tr>
@@ -547,17 +477,27 @@
 					<tbody class="divide-y divide-gray-200">
 						{#each allPayments as payment}
 							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-								<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
+								<td
+									class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
 									>#{payment.id}</td
 								>
 								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm font-semibold text-gray-900 dark:text-white">{payment.student}</div>
+									<div class="text-sm font-semibold text-gray-900 dark:text-white">
+										{payment.student}
+									</div>
 									<div class="text-xs text-gray-500 dark:text-gray-400">{payment.grade}</div>
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{payment.parent}</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{payment.concept}</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{payment.date}</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white"
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
+									>{payment.parent}</td
+								>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
+									>{payment.concept}</td
+								>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
+									>{payment.date}</td
+								>
+								<td
+									class="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white"
 									>Bs {payment.amount.toFixed(2)}</td
 								>
 								<td class="px-6 py-4 whitespace-nowrap">
@@ -572,14 +512,14 @@
 								<td class="px-6 py-4 whitespace-nowrap text-sm">
 									<div class="flex items-center gap-2">
 										<button
-											on:click={() => handleEdit(payment)}
+											onclick={() => handleEdit(payment)}
 											class="text-blue-600 hover:text-blue-900 font-medium"
 											title="Editar"
 										>
 											✏️
 										</button>
 										<button
-											on:click={() => handleDelete(payment.id)}
+											onclick={() => handleDelete(payment.id)}
 											class="text-red-600 hover:text-red-900 font-medium"
 											title="Eliminar"
 										>
@@ -597,26 +537,29 @@
 			</div>
 
 			<!-- Pagination -->
-			<div class="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-600">
+			<div
+				class="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-600"
+			>
 				<div class="text-sm text-gray-700 dark:text-gray-300">
-					Mostrando <span class="font-semibold">{(page - 1) * perPage + 1}</span> a 
-					<span class="font-semibold">{Math.min(page * perPage, total)}</span> de 
+					Mostrando <span class="font-semibold">{(page - 1) * perPage + 1}</span> a
+					<span class="font-semibold">{Math.min(page * perPage, total)}</span> de
 					<span class="font-semibold">{total}</span> resultados
 				</div>
 				<div class="flex items-center gap-2">
 					<button
 						disabled={page === 1}
-						on:click={() => page--}
+						onclick={() => page--}
 						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
 					>
 						Anterior
 					</button>
 					<span class="text-sm text-gray-700 dark:text-gray-300">
-						Página <span class="font-semibold">{page}</span> de <span class="font-semibold">{totalPages}</span>
+						Página <span class="font-semibold">{page}</span> de
+						<span class="font-semibold">{totalPages}</span>
 					</span>
 					<button
 						disabled={page >= totalPages}
-						on:click={() => page++}
+						onclick={() => page++}
 						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
 					>
 						Siguiente
@@ -629,15 +572,22 @@
 
 {#if showModal}
 	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up"
+		>
 			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
 				{editingPayment ? 'Editar Pago' : 'Registrar Nuevo Pago'}
 			</h2>
-			<form on:submit={handleSubmit} class="space-y-4">
+			<form onsubmit={handleSubmit} class="space-y-4">
 				<div class="grid grid-cols-2 gap-4">
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Estudiante</label>
+						<label
+							for="modal-student"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Estudiante</label
+						>
 						<input
+							id="modal-student"
 							type="text"
 							bind:value={formData.student}
 							required
@@ -645,8 +595,13 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Padre/Tutor</label>
+						<label
+							for="modal-parent"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Padre/Tutor</label
+						>
 						<input
+							id="modal-parent"
 							type="text"
 							bind:value={formData.parent}
 							required
@@ -654,8 +609,13 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Concepto</label>
+						<label
+							for="modal-concept"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Concepto</label
+						>
 						<input
+							id="modal-concept"
 							type="text"
 							bind:value={formData.concept}
 							required
@@ -663,8 +623,12 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Grado</label>
+						<label
+							for="modal-grade"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Grado</label
+						>
 						<input
+							id="modal-grade"
 							type="text"
 							bind:value={formData.grade}
 							required
@@ -672,8 +636,12 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Monto</label>
+						<label
+							for="modal-amount"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Monto</label
+						>
 						<input
+							id="modal-amount"
 							type="number"
 							step="0.01"
 							bind:value={formData.amount}
@@ -682,8 +650,12 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Fecha</label>
+						<label
+							for="modal-date"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Fecha</label
+						>
 						<input
+							id="modal-date"
 							type="date"
 							bind:value={formData.date}
 							required
@@ -691,8 +663,13 @@
 						/>
 					</div>
 					<div>
-						<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Estado</label>
+						<label
+							for="modal-status"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Estado</label
+						>
 						<select
+							id="modal-status"
 							bind:value={formData.status}
 							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						>
@@ -705,7 +682,7 @@
 				<div class="flex justify-end gap-4 mt-6">
 					<button
 						type="button"
-						on:click={() => (showModal = false)}
+						onclick={() => (showModal = false)}
 						class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold transition-colors"
 					>
 						Cancelar

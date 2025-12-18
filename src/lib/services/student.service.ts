@@ -12,6 +12,7 @@ class StudentService {
 			grado = '',
 			turno = '',
 			paralelo = '',
+			estado = '',
 			...rest
 		} = filters;
 
@@ -27,6 +28,7 @@ class StudentService {
 		if (grado) params.append('grado', grado);
 		if (turno) params.append('turno', turno);
 		if (paralelo) params.append('paralelo', paralelo);
+		if (estado) params.append('estado', estado);
 
 		// Append other filters if they exist
 		Object.keys(rest).forEach((key) => {

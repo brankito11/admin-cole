@@ -12,12 +12,27 @@
 		RegisterCredentials
 	} from '$lib/interfaces';
 	import { fade, slide } from 'svelte/transition';
+	import { cursoService } from '$lib/services/curso.service';
+	import { studentService } from '$lib/services/student.service';
 	import Pagination from '$lib/components/pagination.svelte';
+	import CourseFilter from '$lib/components/CourseFilter.svelte';
 
-	let totalUsers = $state(0); // Total count from server
 	let loading = $state(true);
+	let isLoadingData = $state(false);
 	let error: string | null = $state(null);
 	let showModal = $state(false);
+
+	let selectedLevel = $state('');
+	let selectedGrade = $state('');
+	let selectedShift = $state('');
+	let selectedSection = $state('');
+
+	// Data stores
+	let allUsersRaw: User[] = $state([]);
+	let courses: any[] = $state([]);
+	let courseMap: any = $state({});
+	let studentMapByParent: Record<string, any[]> = $state({});
+	let levels: Record<string, string[]> = $state({});
 	// Batch Upload State
 	let showBatchModal = $state(false);
 	let batchFile: File | null = $state(null);
@@ -185,59 +200,81 @@
 	];
 
 	// Pagination Logic - Client Side (backend /papas no soporta paginación)
-	let totalPages = $derived(Math.ceil(totalUsers / itemsPerPage));
-	
-	// Use $derived for Svelte 5 reactivity
-	let paginatedUsers = $derived.by(() => {
-		console.log('🔄 Reactive pagination triggered', { 
-			allUsersCount: allUsers.length, 
-			currentPage, 
-			itemsPerPage, 
-			searchTerm, 
-			filterRole 
-		});
-		
-		// Apply filters
-		let filtered = allUsers.filter((user) => {
-			const matchesSearch = !searchTerm ||
-				user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				(user.nombre && user.nombre.toLowerCase().includes(searchTerm.toLowerCase())) ||
-				(user.apellido && user.apellido.toLowerCase().includes(searchTerm.toLowerCase()));
+	// User derived state with safer filtering
+	const filteredUsers = $derived.by(() => {
+		let filtered = allUsersRaw;
 
-			const matchesRole =
-				filterRole === 'Todos' ||
-				(filterRole === 'Admin' && user.role === 'ADMIN') ||
-				(filterRole === 'User' && user.role !== 'ADMIN' && user.role !== 'PADRE') ||
-				(filterRole === 'Padre' && user.role === 'PADRE');
+		const q = searchTerm.toLowerCase().trim();
+		if (q) {
+			filtered = filtered.filter((user) => {
+				return (
+					(user.username || '').toLowerCase().includes(q) ||
+					(user.email || '').toLowerCase().includes(q) ||
+					(user.nombre || '').toLowerCase().includes(q) ||
+					(user.apellido || '').toLowerCase().includes(q)
+				);
+			});
+		}
 
-			return matchesSearch && matchesRole;
-		});
-		
-		totalUsers = filtered.length;
-		
-		// Paginate
-		const startIndex = (currentPage - 1) * itemsPerPage;
-		const endIndex = startIndex + itemsPerPage;
-		const result = filtered.slice(startIndex, endIndex);
-		
-		console.log('✅ Pagination result:', { 
-			filteredCount: filtered.length, 
-			totalUsers, 
-			startIndex, 
-			endIndex, 
-			displayedUsers: result.length 
-		});
-		
-		return result;
+		if (filterRole !== 'Todos') {
+			const target = filterRole.toUpperCase();
+			filtered = filtered.filter((user) => {
+				if (target === 'ADMIN') return user.role === 'ADMIN';
+				if (target === 'PADRE') return user.role === 'PADRE';
+				if (target === 'USER') return user.role !== 'ADMIN' && user.role !== 'PADRE';
+				return true;
+			});
+		}
+
+		// Course Hierarchy Filtering
+		if (selectedLevel) {
+			const levelTarget = selectedLevel.toLowerCase();
+			filtered = filtered.filter((u) => {
+				const children = studentMapByParent[u._id] || [];
+				return children.some((c) => (c.courseLevel || '').toLowerCase() === levelTarget);
+			});
+		}
+
+		if (selectedGrade) {
+			const gradeTarget = selectedGrade.toLowerCase();
+			filtered = filtered.filter((u) => {
+				const children = studentMapByParent[u._id] || [];
+				return children.some((c) => (c.courseName || '').toLowerCase() === gradeTarget);
+			});
+		}
+
+		if (selectedShift) {
+			const shiftTarget = selectedShift.toLowerCase();
+			filtered = filtered.filter((u) => {
+				const children = studentMapByParent[u._id] || [];
+				return children.some((c) => (c.courseShift || '').toLowerCase() === shiftTarget);
+			});
+		}
+
+		if (selectedSection) {
+			const sectionTarget = selectedSection.toLowerCase();
+			filtered = filtered.filter((u) => {
+				const children = studentMapByParent[u._id] || [];
+				return children.some((c) => (c.courseSection || '').toLowerCase() === sectionTarget);
+			});
+		}
+
+		return filtered;
 	});
-	
-	// Assign to users for display
+
+	let totalUsersCountFiltered = $derived(filteredUsers.length);
+	let totalPagesFiltered = $derived(Math.ceil(totalUsersCountFiltered / itemsPerPage));
+
+	let paginatedUsers = $derived.by(() => {
+		const start = (currentPage - 1) * itemsPerPage;
+		return filteredUsers.slice(start, start + itemsPerPage);
+	});
+
 	let users = $derived(paginatedUsers);
 
 	// Search with debounce
 	let searchTimeout: any;
-	
+
 	function handleSearchInput() {
 		clearTimeout(searchTimeout);
 		searchTimeout = setTimeout(() => {
@@ -260,39 +297,105 @@
 		currentPage = 1;
 	}
 
-	let allUsers: User[] = $state([]);
+	let allUsers: User[] = $state([]); // Deprecated, using allUsersRaw
 
 	onMount(async () => {
-		await loadUsers();
+		await initData();
 	});
+
+	async function initData() {
+		isLoadingData = true;
+		try {
+			// 1. Load Courses
+			const cRes = (await cursoService.getAll(0, 1000)) as any;
+			courses = Array.isArray(cRes) ? cRes : cRes.value || cRes.data || [];
+
+			const updatedLevels: Record<string, Set<string>> = {};
+			courses.forEach((c) => {
+				const id = String(c._id || c.id || '');
+				courseMap[id] = c;
+				const niv = c.nivel || 'Sin Asignar';
+				if (!updatedLevels[niv]) updatedLevels[niv] = new Set();
+				updatedLevels[niv].add(c.nombre);
+			});
+
+			levels = {};
+			Object.keys(updatedLevels).forEach((k) => {
+				levels[k] = Array.from(updatedLevels[k]).sort();
+			});
+
+			// 2. Load all students to build parent mapping
+			console.log('🔄 Loading students for mapping...');
+			const sRes = (await studentService.getAll({ page: 1, per_page: 2000 })) as any;
+			const students = Array.isArray(sRes) ? sRes : sRes.data || [];
+
+			studentMapByParent = {};
+			students.forEach((s: any) => {
+				const pId = s.padre_id || s.padreId;
+				if (!pId) return;
+				if (!studentMapByParent[pId]) studentMapByParent[pId] = [];
+
+				const cId = String(s.curso_id || '');
+				const c = courseMap[cId];
+
+				studentMapByParent[pId].push({
+					...s,
+					courseName: c ? c.nombre : s.grado || '',
+					courseLevel: c ? c.nivel : s.nivel || '',
+					courseShift: c ? c.turno : s.turno || '',
+					courseSection: c ? c.paralelo : s.seccion || ''
+				});
+			});
+
+			// 3. Load Users
+			await loadUsers();
+		} catch (e) {
+			console.error('Error initializing user data:', e);
+		} finally {
+			isLoadingData = false;
+		}
+	}
 
 	async function loadUsers() {
 		loading = true;
 		error = null;
 		try {
-			console.log('Fetching all users from backend...');
-			
-			const res = await userService.getUsers();
-			
-			console.log('API Response for Users:', res);
-			
-			// Handle different response formats
-			const resAny = res as any;
-			if (Array.isArray(res)) {
-				allUsers = res;
-			} else if (resAny.data) {
-				allUsers = resAny.data;
-			} else {
-				allUsers = [];
+			let allRaw: any[] = [];
+			let pageIdx = 1;
+			const perPage = 50;
+			let hasMore = true;
+
+			console.log('🔄 Syncing all accounts...');
+
+			while (hasMore && pageIdx <= 25) {
+				try {
+					const response = await userService.getUsers({ page: pageIdx, per_page: perPage });
+					const data = Array.isArray(response) ? response : response.data || [];
+
+					if (data.length === 0) {
+						hasMore = false;
+					} else {
+						allRaw = [...allRaw, ...data];
+						const total = response.total || 0;
+						if (data.length < perPage || (total > 0 && allRaw.length >= total)) {
+							hasMore = false;
+						} else {
+							pageIdx++;
+						}
+					}
+				} catch (err) {
+					console.warn('Error fetching users page:', err);
+					hasMore = false;
+				}
 			}
 
-			totalUsers = allUsers.length;
-			console.log(`Total users fetched: ${allUsers.length}`);
+			allUsersRaw = allRaw;
+			totalUsersCount = allUsersRaw.length;
+			console.log(`✅ Loaded ${allUsersRaw.length} accounts.`);
 		} catch (e: any) {
 			error = `Error al cargar usuarios: ${e.message || e}`;
-			console.error('Error loading users:', e.message || 'Unknown error');
-			allUsers = [];
-			totalUsers = 0;
+			console.error('Error loading users:', e);
+			allUsersRaw = [];
 		} finally {
 			loading = false;
 		}
@@ -583,7 +686,7 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Total Usuarios</p>
-					<p class="text-3xl font-bold mt-2">{users.length}</p>
+					<p class="text-3xl font-bold mt-2">{totalUsersCountFiltered}</p>
 				</div>
 				<div class="text-5xl opacity-80">👥</div>
 			</div>
@@ -594,7 +697,7 @@
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Administradores</p>
 					<p class="text-3xl font-bold mt-2">
-						{users.filter((u) => u.role === 'ADMIN').length}
+						{filteredUsers.filter((u) => u.role === 'ADMIN').length}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">🛡️</div>
@@ -606,7 +709,7 @@
 				<div>
 					<p class="text-[#F0E6D2] text-sm font-medium">Padres</p>
 					<p class="text-3xl font-bold mt-2">
-						{users.filter((u) => u.role === 'PADRE').length}
+						{filteredUsers.filter((u) => u.role === 'PADRE').length}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">👨‍👩‍👧</div>
@@ -614,7 +717,17 @@
 		</div>
 	</div>
 
-	<!-- Filters -->
+	<!-- Course Hierarchy Filters -->
+	<CourseFilter
+		{levels}
+		{courses}
+		bind:selectedLevel
+		bind:selectedGrade
+		bind:selectedShift
+		bind:selectedSection
+		onFilterChange={handleFilterChange}
+	/>
+
 	<div
 		class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
 	>
@@ -700,7 +813,7 @@
 										<div
 											class="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-300 font-bold text-lg"
 										>
-											{user.username.charAt(0).toUpperCase()}
+											{(user.username || user.email || '?').charAt(0).toUpperCase()}
 										</div>
 										<div class="ml-4">
 											<div class="text-sm font-semibold text-gray-900 dark:text-white">
@@ -758,11 +871,11 @@
 		{/if}
 
 		<!-- Pagination -->
-		{#if totalUsers > 0}
+		{#if totalUsersCountFiltered > 0}
 			<Pagination
-				currentPage={currentPage}
-				totalPages={totalPages}
-				totalItems={totalUsers}
+				{currentPage}
+				totalPages={totalPagesFiltered}
+				totalItems={totalUsersCountFiltered}
 				limit={itemsPerPage}
 				onPageChange={handlePageChange}
 				onLimitChange={handleLimitChange}

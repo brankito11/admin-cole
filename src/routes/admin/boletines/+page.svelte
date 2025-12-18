@@ -146,11 +146,13 @@
 			const response = await libretaService.getAll(filters);
 			console.log('API Response for Boletines:', response);
 
-			if (response.data) {
+			// Type guard: check if response has 'data' property (LibretaListResponse)
+			if ('data' in response && response.data) {
 				allBoletines = Array.isArray(response.data) ? response.data : [];
 				total = response.total || 0;
 				totalPages = response.total_pages || 0;
 			} else {
+				// Response is Libreta[] array
 				allBoletines = Array.isArray(response) ? response : [];
 				total = allBoletines.length;
 				totalPages = 1;
@@ -247,16 +249,19 @@
 		}
 	}
 
-	$: avgGeneral = allBoletines.length > 0
-		? allBoletines.reduce((sum, b) => sum + (b.average || 0), 0) / allBoletines.length
-		: 0;
+	$: avgGeneral =
+		allBoletines.length > 0
+			? allBoletines.reduce((sum, b) => sum + (b.average || 0), 0) / allBoletines.length
+			: 0;
 </script>
 
 <div class="space-y-6 animate-fade-in">
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Boletines</h1>
-			<p class="text-gray-600 dark:text-gray-400 mt-1">Administra las calificaciones de todos los estudiantes</p>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">
+				Administra las calificaciones de todos los estudiantes
+			</p>
 		</div>
 		<button
 			on:click={handleCreate}
@@ -370,9 +375,7 @@
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-		<div
-			class="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-6 text-white shadow-lg"
-		>
+		<div class="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-green-100 text-sm font-medium">Publicados</p>
@@ -384,9 +387,7 @@
 			</div>
 		</div>
 
-		<div
-			class="bg-gradient-to-br from-[#AA7229] to-[#8b5d21] rounded-2xl p-6 text-white shadow-lg"
-		>
+		<div class="bg-gradient-to-br from-[#AA7229] to-[#8b5d21] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-yellow-100 text-sm font-medium">Borradores</p>
@@ -420,10 +421,14 @@
 	</div>
 
 	<!-- Filters -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
+	>
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Buscar</label
+				>
 				<input
 					type="text"
 					bind:value={searchTerm}
@@ -433,7 +438,9 @@
 				/>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Estado</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Filtrar por Estado</label
+				>
 				<select
 					bind:value={filterStatus}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -444,7 +451,9 @@
 				</select>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Filtrar por Fecha</label>
+				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Filtrar por Fecha</label
+				>
 				<input
 					type="date"
 					bind:value={filterDate}
@@ -455,7 +464,9 @@
 	</div>
 
 	<!-- Boletines Table -->
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+	>
 		{#if isLoadingData}
 			<div class="flex items-center justify-center py-20">
 				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -470,25 +481,32 @@
 				<table class="w-full">
 					<thead class="bg-gray-50 dark:bg-gray-700">
 						<tr>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>ID</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Estudiante</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Grado</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Período</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Promedio</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Estado</th
 							>
-							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th
+								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 								>Acciones</th
 							>
 						</tr>
@@ -496,22 +514,35 @@
 					<tbody class="divide-y divide-gray-200">
 						{#each allBoletines as boletin}
 							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-								<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
+								<td
+									class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
 									>#{boletin.id}</td
 								>
 								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm font-semibold text-gray-900 dark:text-white">{boletin.student}</div>
+									<div class="text-sm font-semibold text-gray-900 dark:text-white">
+										{boletin.student}
+									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<div class="text-sm text-gray-900 dark:text-white">{boletin.grade}</div>
-									<div class="text-xs text-gray-500 dark:text-gray-400">Sección {boletin.section}</div>
+									<div class="text-xs text-gray-500 dark:text-gray-400">
+										Sección {boletin.section}
+									</div>
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{boletin.period}</td>
+								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
+									>{boletin.period}</td
+								>
 								<td class="px-6 py-4 whitespace-nowrap">
-									<span class="text-lg {getGradeColor(boletin.average)}">{boletin.average.toFixed(1)}</span>
+									<span class="text-lg {getGradeColor(boletin.average)}"
+										>{boletin.average.toFixed(1)}</span
+									>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
-									<span class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(boletin.status)}">
+									<span
+										class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
+											boletin.status
+										)}"
+									>
 										{boletin.status}
 									</span>
 								</td>
@@ -546,10 +577,12 @@
 			</div>
 
 			<!-- Pagination -->
-			<div class="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-600">
+			<div
+				class="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-600"
+			>
 				<div class="text-sm text-gray-700 dark:text-gray-300">
-					Mostrando <span class="font-semibold">{(page - 1) * perPage + 1}</span> a 
-					<span class="font-semibold">{Math.min(page * perPage, total)}</span> de 
+					Mostrando <span class="font-semibold">{(page - 1) * perPage + 1}</span> a
+					<span class="font-semibold">{Math.min(page * perPage, total)}</span> de
 					<span class="font-semibold">{total}</span> resultados
 				</div>
 				<div class="flex items-center gap-2">
@@ -561,7 +594,8 @@
 						Anterior
 					</button>
 					<span class="text-sm text-gray-700 dark:text-gray-300">
-						Página <span class="font-semibold">{page}</span> de <span class="font-semibold">{totalPages}</span>
+						Página <span class="font-semibold">{page}</span> de
+						<span class="font-semibold">{totalPages}</span>
 					</span>
 					<button
 						disabled={page >= totalPages}

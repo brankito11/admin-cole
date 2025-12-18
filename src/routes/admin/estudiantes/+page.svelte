@@ -4,6 +4,7 @@
 	import { userService } from '$lib/services/user.service';
 	import { cursoService } from '$lib/services/curso.service';
 	import Pagination from '$lib/components/pagination.svelte';
+	import CourseFilter from '$lib/components/CourseFilter.svelte';
 
 	// Modal and Loading States
 	let showModal = $state(false);
@@ -29,12 +30,11 @@
 
 	// Filter and Search State
 	let searchTerm = $state('');
-	let filterGrade = $state('Todos');
-	let filterStatus = $state('Todos');
 	let selectedLevel = $state('');
 	let selectedGrade = $state('');
 	let selectedShift = $state('');
 	let selectedSection = $state('');
+	let selectedStatus = $state(''); // For estado filter
 
 	// Pagination State
 	let allStudentsRaw: any[] = $state([]);
@@ -45,9 +45,19 @@
 	// Data Structures
 	let levels: Record<string, string[]> = $state({});
 	const gradeOrder = [
-		'Pre-Kinder', 'Kinder', 'Primero de Primaria', 'Segundo de Primaria', 'Tercero de Primaria',
-		'Cuarto de Primaria', 'Quinto de Primaria', 'Sexto de Primaria', 'Primero de Secundaria',
-		'Segundo de Secundaria', 'Tercero de Secundaria', 'Cuarto de Secundaria', 'Quinto de Secundaria',
+		'Pre-Kinder',
+		'Kinder',
+		'Primero de Primaria',
+		'Segundo de Primaria',
+		'Tercero de Primaria',
+		'Cuarto de Primaria',
+		'Quinto de Primaria',
+		'Sexto de Primaria',
+		'Primero de Secundaria',
+		'Segundo de Secundaria',
+		'Tercero de Secundaria',
+		'Cuarto de Secundaria',
+		'Quinto de Secundaria',
 		'Sexto de Secundaria'
 	];
 
@@ -57,15 +67,18 @@
 
 	function getAvailableShifts(grade: string) {
 		if (!grade) return [];
-		const relevantCourses = courses.filter((c) => c.nombre === grade);
-		return [...new Set(relevantCourses.map((c) => c.turno))].sort();
+		const g = grade.toLowerCase().trim();
+		const relevant = courses.filter((c) => (c.nombre || '').toLowerCase().trim() === g);
+		return [...new Set(relevant.map((c) => c.turno))].filter(Boolean).sort();
 	}
 
 	function getAvailableSections(grade: string, shift: string) {
 		if (!grade) return [];
-		let relevantCourses = courses.filter((c) => c.nombre === grade);
-		if (shift) relevantCourses = relevantCourses.filter((c) => c.turno === shift);
-		return [...new Set(relevantCourses.map((c) => c.paralelo))].sort();
+		const g = grade.toLowerCase().trim();
+		const s = shift.toLowerCase().trim();
+		let relevant = courses.filter((c) => (c.nombre || '').toLowerCase().trim() === g);
+		if (shift) relevant = relevant.filter((c) => (c.turno || '').toLowerCase().trim() === s);
+		return [...new Set(relevant.map((c) => c.paralelo))].filter(Boolean).sort();
 	}
 
 	function sortGrades(grades: string[]) {
@@ -87,8 +100,11 @@
 	async function initData() {
 		isLoadingData = true;
 		try {
-			const res = await cursoService.getAll(0, 1000) as any;
-			courses = Array.isArray(res) ? res : res.data || [];
+			const res = (await cursoService.getAll(0, 1000)) as any;
+			// API might return 'data', 'value', or the array directly
+			courses = Array.isArray(res) ? res : res.data || res.value || [];
+
+			console.log('📚 Courses loaded:', courses.length);
 
 			const newLevels: Record<string, Set<string>> = {};
 			courses.forEach((c) => {
@@ -114,138 +130,228 @@
 				updatedLevels[key] = sortGrades(Array.from(newLevels[key]));
 			});
 			levels = updatedLevels;
+			console.log('📑 Available levels:', Object.keys(levels));
 
 			await loadStudents();
 		} catch (e) {
 			console.error('Error initializing data', e);
+			// Fail-safe: Ensure levels has at least a fallback if courses fail
+			if (Object.keys(levels).length === 0) {
+				levels = { 'Sin Asignar': ['General'] };
+			}
 			await loadStudents();
 		}
 	}
 
 	async function loadStudents() {
+		if (isLoadingData && allStudentsRaw.length > 0) return;
 		isLoadingData = true;
 		try {
-			// Call the service with new parameter names from Swagger
-			const response = await studentService.getAll({ 
-				page: currentPage, 
-				per_page: itemsPerPage,
-				q: searchTerm,
-				nivel: selectedLevel,
-				grado: selectedGrade,
-				turno: selectedShift,
-				paralelo: selectedSection
-			}) as any;
-			
-			let rawStudents = [];
-			let total = 0;
+			let allRaw: any[] = [];
+			let page = 1;
+			const perPage = 40;
+			let hasMore = true;
 
-			// Handle response format (either raw array or object with data array)
-			if (Array.isArray(response)) {
-				rawStudents = response;
-				// If the backend doesn't return total, we estimate based on current fetch
-				// If we got a full page, assume there's at least one more page for now
-				const skip = (currentPage - 1) * itemsPerPage;
-				total = rawStudents.length < itemsPerPage ? skip + rawStudents.length : skip + rawStudents.length + itemsPerPage;
-			} else if (response && response.data) {
-				rawStudents = response.data;
-				total = response.total || response.total_count || response.count || 
-					((currentPage - 1) * itemsPerPage + rawStudents.length + (rawStudents.length < itemsPerPage ? 0 : itemsPerPage));
+			// Fetch all students in chunks
+			while (hasMore && page <= 25) {
+				try {
+					const response = (await studentService.getAll({ page, per_page: perPage })) as any;
+					const data = Array.isArray(response) ? response : response.data || [];
+
+					if (data.length === 0) {
+						hasMore = false;
+					} else {
+						allRaw = [...allRaw, ...data];
+						const total = response.total || 0;
+						if (data.length < perPage || (total > 0 && allRaw.length >= total)) {
+							hasMore = false;
+						} else {
+							page++;
+						}
+					}
+				} catch (err) {
+					console.warn(`Error on page ${page}:`, err);
+					hasMore = false;
+				}
 			}
 
-			// Update total for pagination
-			totalStudents = total;
-
-			allStudentsRaw = rawStudents.map((s: any) => {
-				let cId = String(s.curso_id || s.cursoId || s.courseId || s.course_id || s['Curso ID'] || '');
-				let c = (typeof s.curso === 'object' && s.curso) || courseMap[cId];
+			allStudentsRaw = allRaw.map((s: any) => {
+				const cId = String(s.curso_id || s.cursoId || '');
+				// Improved mapping: try ID, then try some known naming patterns if possible
+				const c = courseMap[cId];
 
 				return {
 					id: s.id || s._id,
-					rude: s.rude || s.RUDE,
-					curso_id: cId,
-					name: s.name || `${s.nombres || ''} ${s.apellidos || ''}`.trim() || 'Sin Nombre',
-					grade: c ? c.nombre : s.grade || 'Sin Grado',
-					section: c ? c.paralelo : s.section || 'A',
-					shift: c ? c.turno : s.shift || 'Mañana',
-					parent: s.parent || s.padre || 'No asignado',
-					email: s.email || '',
-					phone: s.phone || '',
+					rude: String(s.rude || s.RUDE || 'S/N'),
+					name: `${s.nombres || ''} ${s.apellidos || ''}`.trim() || 'Sin Nombre',
+					grade: c ? c.nombre : s.grado || s.grade || 'Sin Grado',
+					section: c ? c.paralelo : s.seccion || s.section || 'A',
+					shift: c ? c.turno : s.turno || s.shift || 'Mañana',
+					nivel: c ? c.nivel : s.nivel || 'Sin Asignar',
 					status: s.status || s.estado || 'Activo'
 				};
 			});
-		} catch (error: any) {
-			console.error('Error loading students:', error);
+		} catch (error) {
+			console.error('❌ Error loading students:', error);
 		} finally {
 			isLoadingData = false;
 		}
 	}
 
-	// Simplified logic: Server-side pagination is now primary.
-	// Client-side filtering is "visual only" for now per user request.
-	let filteredStudents = $derived(allStudentsRaw);
-	
-	// totalStudents is updated in loadStudents()
-	let totalPages = $derived(Math.ceil(totalStudents / itemsPerPage));
-	
-	// paginatedStudents is already paginated by the API
-	let paginatedStudents = $derived(allStudentsRaw);
+	// REACTIVE LOGIC (Svelte 5)
+	const filteredStudents = $derived.by(() => {
+		let filtered = allStudentsRaw;
 
-	// Derived Stats
-	let activeCount = $derived(filteredStudents.filter(s => s.status.toUpperCase().includes('ACTIV')).length);
-	let inactiveCount = $derived(filteredStudents.filter(s => s.status.toUpperCase().includes('INACTIV')).length);
-	let gradeCount = $derived(new Set(filteredStudents.map(s => s.grade)).size);
+		if (searchTerm) {
+			const q = searchTerm.toLowerCase().trim();
+			filtered = filtered.filter(
+				(s) =>
+					s.name.toLowerCase().includes(q) || (s.rude && String(s.rude).toLowerCase().includes(q))
+			);
+		}
+
+		if (selectedLevel) {
+			const target = selectedLevel.toLowerCase().trim();
+			filtered = filtered.filter((s) => (s.nivel || '').toLowerCase().trim() === target);
+		}
+
+		if (selectedGrade) {
+			const target = selectedGrade.toLowerCase().trim();
+			filtered = filtered.filter((s) => (s.grade || '').toLowerCase().trim() === target);
+		}
+
+		if (selectedShift) {
+			const target = selectedShift.toLowerCase().trim();
+			filtered = filtered.filter((s) => (s.shift || '').toLowerCase().trim() === target);
+		}
+
+		if (selectedSection) {
+			const target = selectedSection.toLowerCase().trim();
+			filtered = filtered.filter((s) => (s.section || '').toLowerCase().trim() === target);
+		}
+
+		if (selectedStatus) {
+			const target = selectedStatus.toLowerCase().trim();
+			filtered = filtered.filter((s) => (s.status || '').toLowerCase().trim().includes(target));
+		}
+
+		return filtered;
+	});
+
+	let totalStudentsCount = $derived(filteredStudents.length);
+	let totalPages = $derived(Math.ceil(totalStudentsCount / itemsPerPage));
+
+	let paginatedStudents = $derived.by(() => {
+		const start = (currentPage - 1) * itemsPerPage;
+		return filteredStudents.slice(start, start + itemsPerPage);
+	});
+
+	let activeCount = $derived(
+		filteredStudents.filter((s) => s.status.toUpperCase().includes('ACT')).length
+	);
+	let inactiveCount = $derived(
+		filteredStudents.filter((s) => s.status.toUpperCase().includes('INAC')).length
+	);
+	let gradeCount = $derived(new Set(filteredStudents.map((s) => s.grade)).size);
 
 	// Event Handlers
-	function selectLevel(level: string) { 
-		selectedLevel = selectedLevel === level ? '' : level; 
-		// Visual only now, but we'll reset page
+	function selectLevel(level: string) {
+		// If clicking the same level, deselect it
+		if (selectedLevel === level) {
+			selectedLevel = '';
+			selectedGrade = '';
+			selectedShift = '';
+			selectedSection = '';
+		} else {
+			// Select new level and reset dependent filters
+			selectedLevel = level;
+			selectedGrade = '';
+			selectedShift = '';
+			selectedSection = '';
+		}
+		currentPage = 1;
+	}
+	function selectGrade(grade: string) {
+		// If clicking the same grade, deselect it
+		if (selectedGrade === grade) {
+			selectedGrade = '';
+			selectedShift = '';
+			selectedSection = '';
+		} else {
+			// Select new grade and reset dependent filters
+			selectedGrade = grade;
+			selectedShift = '';
+			selectedSection = '';
+		}
+		currentPage = 1;
+	}
+	function selectShift(shift: string) {
+		// If clicking the same shift, deselect it
+		if (selectedShift === shift) {
+			selectedShift = '';
+			selectedSection = '';
+		} else {
+			// Select new shift and reset section
+			selectedShift = shift;
+			selectedSection = '';
+		}
+		currentPage = 1;
+	}
+	function selectSection(section: string) {
+		// Toggle section selection
+		selectedSection = selectedSection === section ? '' : section;
+		currentPage = 1;
+	}
+
+	function handleSearchInput() {
 		currentPage = 1;
 		loadStudents();
 	}
-	function selectGrade(grade: string) { 
-		selectedGrade = selectedGrade === grade ? '' : grade; 
+	function handlePageChange(page: number) {
+		currentPage = page;
+		loadStudents();
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	}
+	function handleLimitChange(limit: number) {
+		itemsPerPage = limit;
 		currentPage = 1;
 		loadStudents();
 	}
-	function selectShift(shift: string) { 
-		selectedShift = selectedShift === shift ? '' : shift; 
+	function handleFilterChange() {
 		currentPage = 1;
-		loadStudents();
 	}
-	function selectSection(section: string) { 
-		selectedSection = selectedSection === section ? '' : section; 
-		currentPage = 1;
-		loadStudents();
-	}
-	
-	function handleSearchInput() { currentPage = 1; loadStudents(); }
-	function handlePageChange(page: number) { currentPage = page; loadStudents(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-	function handleLimitChange(limit: number) { itemsPerPage = limit; currentPage = 1; loadStudents(); }
-	function handleFilterChange() { currentPage = 1; loadStudents(); }
 
 	function clearFilters() {
 		searchTerm = '';
-		filterGrade = 'Todos';
-		filterStatus = 'Todos';
 		selectedLevel = '';
 		selectedGrade = '';
 		selectedShift = '';
 		selectedSection = '';
+		selectedStatus = '';
 		currentPage = 1;
 		loadStudents();
 	}
 
 	function getStatusStyle(status: string) {
 		const s = (status || '').toUpperCase();
-		if (s.includes('ACTIV')) return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800';
-		if (s.includes('INACTIV')) return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-800';
+		if (s.includes('ACTIV'))
+			return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-200 dark:border-green-800';
+		if (s.includes('INACTIV'))
+			return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-200 dark:border-red-800';
 		return 'bg-gray-100 text-gray-800 border-gray-200';
 	}
 
 	let viewingStudent: any = $state(null);
-	function handleView(student: any) { viewingStudent = student; }
-	function openBatchModal() { showBatchModal = true; }
-	function closeBatchModal() { showBatchModal = false; batchFile = null; }
+	function handleView(student: any) {
+		viewingStudent = student;
+	}
+	function openBatchModal() {
+		showBatchModal = true;
+	}
+	function closeBatchModal() {
+		showBatchModal = false;
+		batchFile = null;
+	}
 
 	function handleFileSelect(event: Event) {
 		const target = event.target as HTMLInputElement;
@@ -256,7 +362,7 @@
 		if (!batchFile) return;
 		loading = true;
 		try {
-			const result = await studentService.importStudents(batchFile) as any;
+			const result = (await studentService.importStudents(batchFile)) as any;
 			alert(`Procesado. ${result.created || 0} estudiantes importados.`);
 			closeBatchModal();
 			await loadStudents();
@@ -281,7 +387,8 @@
 			const { nombres, apellidos } = splitName(form.name);
 			const payload = {
 				rude: editingStudent?.rude || '0',
-				nombres, apellidos: apellidos || '.',
+				nombres,
+				apellidos: apellidos || '.',
 				curso_id: form.grade,
 				turno: form.shift,
 				estado: form.status.toUpperCase()
@@ -291,7 +398,7 @@
 				await studentService.update(editingStudent.id, payload);
 				alert('Estudiante actualizado correctamente');
 			} else {
-				const result = await studentService.create(payload) as any;
+				const result = (await studentService.create(payload)) as any;
 				alert('Estudiante creado correctamente');
 			}
 
@@ -308,13 +415,31 @@
 
 	function handleCreate() {
 		editingStudent = null;
-		form = { name: '', grade: courses[0]?._id || '', section: '', shift: 'MAÑANA', parent: '', email: '', phone: '', status: 'Activo' };
+		form = {
+			name: '',
+			grade: courses[0]?._id || '',
+			section: '',
+			shift: 'MAÑANA',
+			parent: '',
+			email: '',
+			phone: '',
+			status: 'Activo'
+		};
 		showModal = true;
 	}
 
 	function handleEdit(student: any) {
 		editingStudent = student;
-		form = { name: student.name, grade: student.curso_id, section: student.section, shift: student.shift.toUpperCase(), parent: student.parent, email: student.email, phone: student.phone, status: student.status.includes('Activ') ? 'Activo' : 'Inactivo' };
+		form = {
+			name: student.name,
+			grade: student.curso_id,
+			section: student.section,
+			shift: student.shift.toUpperCase(),
+			parent: student.parent,
+			email: student.email,
+			phone: student.phone,
+			status: student.status.includes('Activ') ? 'Activo' : 'Inactivo'
+		};
 		showModal = true;
 	}
 
@@ -364,111 +489,15 @@
 	</div>
 
 	<!-- Hierarchy Controls -->
-	<div class="space-y-4">
-		<!-- Level Tabs -->
-		<div class="flex flex-wrap gap-4">
-			{#each Object.keys(levels) as level}
-				<button
-					onclick={() => selectLevel(level)}
-					class="px-8 py-3 rounded-t-2xl font-bold transition-all text-lg flex-1 md:flex-none border-b-2
-					{selectedLevel === level
-						? 'bg-white dark:bg-gray-800 text-blue-600 border-blue-500 shadow-sm'
-						: 'bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-transparent hover:bg-gray-200 dark:hover:bg-gray-700'}"
-				>
-					{level}
-				</button>
-			{/each}
-		</div>
-
-		<!-- Unified Selection Container -->
-		{#if selectedLevel}
-			<div
-				class="bg-white dark:bg-gray-800 p-6 rounded-b-2xl rounded-tr-2xl shadow-xl border border-gray-200 dark:border-gray-700 animate-slide-up space-y-8 relative"
-			>
-				<!-- Grades -->
-				<div>
-					<h3
-						class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
-					>
-						<span class="w-2 h-2 rounded-full bg-blue-500"></span>
-						Selecciona el Curso
-					</h3>
-					<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-						{#each levels[selectedLevel] as grade}
-							<button
-								onclick={() => selectGrade(grade)}
-								class="px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
-								{selectedGrade === grade
-									? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:border-blue-500 dark:text-blue-300 shadow-md transform scale-105'
-									: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
-							>
-								{grade}
-							</button>
-						{/each}
-					</div>
-				</div>
-
-				<!-- Turno & Paralelo (Side by Side if desktop) -->
-				{#if selectedGrade}
-					<div
-						class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-gray-100 dark:border-gray-700"
-					>
-						<!-- Shift Scope -->
-						<div class="animate-fade-in">
-							<h3
-								class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
-							>
-								<span class="w-2 h-2 rounded-full bg-purple-500"></span>
-								Turno
-							</h3>
-							<div class="flex gap-3">
-								<div class="flex gap-3">
-									{#each availableShifts as shift}
-										<button
-											onclick={() => selectShift(shift)}
-											class="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
-										{selectedShift === shift
-												? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-900/20 dark:border-purple-500 dark:text-purple-300 shadow-md'
-												: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
-										>
-											{shift}
-										</button>
-									{/each}
-								</div>
-							</div>
-						</div>
-
-						<!-- Section Scope -->
-						{#if selectedShift}
-							<div class="animate-fade-in">
-								<h3
-									class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
-								>
-									<span class="w-2 h-2 rounded-full bg-pink-500"></span>
-									Paralelo
-								</h3>
-								<div class="flex gap-3">
-									<div class="flex gap-3">
-										{#each availableSections as section}
-											<button
-												onclick={() => selectSection(section)}
-												class="w-14 h-12 rounded-xl text-lg font-bold transition-all flex items-center justify-center border-2
-											{selectedSection === section
-													? 'bg-pink-50 border-pink-500 text-pink-700 dark:bg-pink-900/20 dark:border-pink-500 dark:text-pink-300 shadow-md'
-													: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
-											>
-												{section}
-											</button>
-										{/each}
-									</div>
-								</div>
-							</div>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		{/if}
-	</div>
+	<CourseFilter
+		{levels}
+		{courses}
+		bind:selectedLevel
+		bind:selectedGrade
+		bind:selectedShift
+		bind:selectedSection
+		onFilterChange={handleFilterChange}
+	/>
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -477,7 +506,7 @@
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Estudiantes Encontrados</p>
 					<p class="text-3xl font-bold mt-2">
-						{totalStudents}
+						{totalStudentsCount}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">🎓</div>
@@ -521,61 +550,25 @@
 		</div>
 	</div>
 
-	<!-- Filters -->
+	<!-- Search Bar -->
 	<div
 		class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
 	>
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-			<div>
+		<div class="flex items-center gap-4">
+			<div class="flex-1">
 				<label
 					for="search-input"
-					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Buscar estudiante</label
 				>
 				<input
 					id="search-input"
 					type="text"
 					bind:value={searchTerm}
 					oninput={handleSearchInput}
-					placeholder="Buscar por nombre, padre o email..."
-					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+					placeholder="Buscar por nombre, RUDE, padre o email..."
+					class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
 				/>
-			</div>
-			<div>
-				<label
-					for="grade-filter"
-					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-					>Filtrar por Grado</label
-				>
-				<select
-					id="grade-filter"
-					bind:value={filterGrade}
-					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-				>
-					<option>Todos</option>
-					{#if selectedLevel}
-						{#each levels[selectedLevel] as grade}
-							<option>{grade}</option>
-						{/each}
-					{:else}
-						<option>Seleccione Nivel</option>
-					{/if}
-				</select>
-			</div>
-			<div>
-				<label
-					for="status-filter"
-					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-					>Filtrar por Estado</label
-				>
-				<select
-					id="status-filter"
-					bind:value={filterStatus}
-					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-				>
-					<option>Todos</option>
-					<option>Activo</option>
-					<option>Inactivo</option>
-				</select>
 			</div>
 		</div>
 	</div>
@@ -710,10 +703,12 @@
 
 	<!-- Pagination -->
 	{#if totalStudents > 0}
-		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+		>
 			<Pagination
-				currentPage={currentPage}
-				totalPages={totalPages}
+				{currentPage}
+				{totalPages}
 				totalItems={totalStudents}
 				limit={itemsPerPage}
 				onPageChange={handlePageChange}
@@ -766,7 +761,8 @@
 					</div>
 					<div>
 						<span class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-							>Turno</span>
+							>Turno</span
+						>
 						<div
 							class="flex rounded-xl overflow-hidden border border-gray-300 dark:border-gray-600"
 						>

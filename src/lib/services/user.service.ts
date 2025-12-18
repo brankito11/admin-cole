@@ -4,14 +4,12 @@ import type { GetUsersResponse, User } from '$lib/interfaces';
 class UserService {
 	// Obtener todos los usuarios (apiCole maneja el token)
 	// NOTA: El endpoint /papas NO soporta paginación, devuelve todos los usuarios
-	async getUsers(): Promise<User[]> {
+	async getUsers(filters: any = {}): Promise<any> {
 		try {
-			// Usamos directamente /papas ya que /users no está disponible
-			// El backend ignora skip y limit, siempre devuelve todos
-			const response = await apiCole.get<any>(`/papas`);
-			const padres = Array.isArray(response) ? response : response.data || [];
-			// Mapeamos o retornamos directamente si la estructura coincide con User
-			return padres;
+			const { page = 1, per_page = 50 } = filters;
+			// El endpoint /papas soporta paginación por page y per_page similar a estudiantes
+			const response = await apiCole.get<any>(`/papas?page=${page}&per_page=${per_page}`);
+			return response;
 		} catch (error) {
 			console.error('💥 Get Users exception:', error);
 			throw error;
