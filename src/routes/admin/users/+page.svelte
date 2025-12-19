@@ -29,10 +29,19 @@
 
 	// Data stores
 	let allUsersRaw: User[] = $state([]);
+	let users = $derived(allUsersRaw);
 	let courses: any[] = $state([]);
 	let courseMap: any = $state({});
 	let studentMapByParent: Record<string, any[]> = $state({});
 	let levels: Record<string, string[]> = $state({});
+	// Pagination State
+	let page = $state(1);
+	let itemsPerPage = $state(10);
+	let totalUsers = $state(0);
+
+	// Summary stats
+	let totalPagesFiltered = $derived(Math.ceil(totalUsers / itemsPerPage));
+
 	// Batch Upload State
 	let showBatchModal = $state(false);
 	let batchFile: File | null = $state(null);
@@ -40,55 +49,21 @@
 
 	let creatingAdmin = $state(false);
 	let searchTerm = $state('');
-	let filterRole = $state('Todos');
+	let filterRole = $state('Padre');
 
-	// Pagination State
-	let currentPage = $state(1);
-	let itemsPerPage = $state(10);
-
-	async function handleCreateAdmin(e?: Event) {
-		if (e) e.preventDefault();
-		creatingAdmin = true;
-		try {
-			// Ensure we pass a string, or handle it if we want authService to deal with it.
-			// If authService.createAdmin expects string, we must provide it.
-			const token = $auth?.token || '';
-			if (!token) {
-				alert('No hay sesión activa');
-				return;
-			}
-			await authService.createAdmin(token, newAdmin);
-			alert('Administrador creado exitosamente');
-			showModal = false;
-			newAdmin = { username: '', password: '' };
-			await loadUsers();
-		} catch (e: any) {
-			console.error(e);
-			alert('Error al crear administrador: ' + (e.message || 'Error desconocido'));
-		} finally {
-			creatingAdmin = false;
-		}
-	}
-
-	// ... existing script ...
-
+	// Batch Upload UI State
+	let isDragging = $state(false);
 	function openBatchModal() {
 		showBatchModal = true;
 	}
-
 	function closeBatchModal() {
 		showBatchModal = false;
 		batchFile = null;
 	}
-
 	function handleFileSelect(event: Event) {
 		const target = event.target as HTMLInputElement;
-		if (target.files && target.files.length > 0) {
-			batchFile = target.files[0];
-		}
+		if (target.files && target.files.length > 0) batchFile = target.files[0];
 	}
-
-	let isDragging = $state(false);
 	function handleDragOver(e: DragEvent) {
 		e.preventDefault();
 		isDragging = true;
@@ -101,61 +76,31 @@
 		isDragging = false;
 		if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
 			const file = e.dataTransfer.files[0];
-			if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-				batchFile = file;
-			} else {
-				alert('Por favor sube un archivo Excel válido (.xlsx, .xls)');
-			}
+			if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) batchFile = file;
+			else alert('Por favor sube un archivo Excel válido (.xlsx, .xls)');
 		}
 	}
-
 	function downloadTemplate() {
-		// Create a simple CSV or handle download
-		const csvContent =
-			'data:text/csv;charset=utf-8,Email,Password,Nombre,Apellido,Telefono\nejemplo@correo.com,123456,Juan,Perez,70000000';
-		const encodedUri = encodeURI(csvContent);
-		const link = document.createElement('a');
-		link.setAttribute('href', encodedUri);
-		link.setAttribute('download', 'plantilla_padres.csv'); // Or .xlsx if we could generate it
-		// Since backend expects Excel, maybe we should point to a static file or just warn
-		// For now simple CSV might not work if backend strictly parses Excel.
-		// Better to just alert "Formato esperado: ..." if we can't generate Excel on frontend easily without lib.
-		// Re-reading service: "importPadres ... Columnas del Excel: Email, Password..."
-		// Let's assume user knows how to make excel for now, but I'll add the button layout.
-		// Actually, I can construct a dummy link or alert the columns.
-		// alert("Por favor crea un Excel con las columnas: Email, Password, Nombre, Apellido, Telefono");
-		console.log(
-			'Por favor crea un Excel con las columnas: Email, Password, Nombre, Apellido, Telefono'
-		);
+		console.log('Columnas: Email, Password, Nombre, Apellido, Telefono');
+		alert('Columnas requeridas: Email, Password, Nombre, Apellido, Telefono');
 	}
-
 	async function handleBatchUpload() {
 		if (!batchFile) return;
-		// Removed manual auth check to rely on service/apiCole which uses localStorage
-		// if (!$auth?.token) { ... }
-
 		loadingBatch = true;
 		try {
 			await userService.importPadres(batchFile);
-			// Removed blocking alert to prevent UI freeze
-			console.log('Padres importados exitosamente');
 			closeBatchModal();
-			await loadUsers(); // Refresh list
-			// TODO: Show a nice toast here
+			await loadUsers();
 		} catch (e: any) {
 			console.error('Error importing:', e);
-			// Changed to console error to avoid freezing, maybe set a UI error state
-			// alert('Error al importar: ' + e.message);
+			alert('Error al importar: ' + (e.message || 'Error desconocido'));
 		} finally {
 			loadingBatch = false;
 		}
 	}
 
 	// Form data for new admin
-	let newAdmin: CreateAdminCredentials = $state({
-		username: '',
-		password: ''
-	});
+	let newAdmin: CreateAdminCredentials = $state({ username: '', password: '' });
 
 	// Parent Management State
 	let showParentModal = $state(false);
@@ -173,7 +118,7 @@
 	let currentParentId = $state('');
 	let parentChildren: Hijo[] = $state([]);
 	let loadingChildren = $state(false);
-	let addingChild = $state(false); // This was already here, keeping it.
+	let addingChild = $state(false);
 	let newChild: HijoCreateData = $state({
 		nombre: '',
 		apellido: '',
@@ -199,105 +144,89 @@
 		'6° Secundaria'
 	];
 
-	// Pagination Logic - Client Side (backend /papas no soporta paginación)
-	// User derived state with safer filtering
-	const filteredUsers = $derived.by(() => {
-		let filtered = allUsersRaw;
-
-		const q = searchTerm.toLowerCase().trim();
-		if (q) {
-			filtered = filtered.filter((user) => {
-				return (
-					(user.username || '').toLowerCase().includes(q) ||
-					(user.email || '').toLowerCase().includes(q) ||
-					(user.nombre || '').toLowerCase().includes(q) ||
-					(user.apellido || '').toLowerCase().includes(q)
-				);
-			});
+	async function handleCreateAdmin(e?: Event) {
+		if (e) e.preventDefault();
+		creatingAdmin = true;
+		try {
+			const token = $auth?.token || '';
+			if (!token) {
+				alert('No hay sesión activa');
+				return;
+			}
+			await authService.createAdmin(token, newAdmin);
+			alert('Administrador creado exitosamente');
+			showModal = false;
+			newAdmin = { username: '', password: '' };
+			await loadUsers();
+		} catch (e: any) {
+			console.error(e);
+			alert('Error al crear administrador: ' + (e.message || 'Error desconocido'));
+		} finally {
+			creatingAdmin = false;
 		}
-
-		if (filterRole !== 'Todos') {
-			const target = filterRole.toUpperCase();
-			filtered = filtered.filter((user) => {
-				if (target === 'ADMIN') return user.role === 'ADMIN';
-				if (target === 'PADRE') return user.role === 'PADRE';
-				if (target === 'USER') return user.role !== 'ADMIN' && user.role !== 'PADRE';
-				return true;
-			});
-		}
-
-		// Course Hierarchy Filtering
-		if (selectedLevel) {
-			const levelTarget = selectedLevel.toLowerCase();
-			filtered = filtered.filter((u) => {
-				const children = studentMapByParent[u._id] || [];
-				return children.some((c) => (c.courseLevel || '').toLowerCase() === levelTarget);
-			});
-		}
-
-		if (selectedGrade) {
-			const gradeTarget = selectedGrade.toLowerCase();
-			filtered = filtered.filter((u) => {
-				const children = studentMapByParent[u._id] || [];
-				return children.some((c) => (c.courseName || '').toLowerCase() === gradeTarget);
-			});
-		}
-
-		if (selectedShift) {
-			const shiftTarget = selectedShift.toLowerCase();
-			filtered = filtered.filter((u) => {
-				const children = studentMapByParent[u._id] || [];
-				return children.some((c) => (c.courseShift || '').toLowerCase() === shiftTarget);
-			});
-		}
-
-		if (selectedSection) {
-			const sectionTarget = selectedSection.toLowerCase();
-			filtered = filtered.filter((u) => {
-				const children = studentMapByParent[u._id] || [];
-				return children.some((c) => (c.courseSection || '').toLowerCase() === sectionTarget);
-			});
-		}
-
-		return filtered;
-	});
-
-	let totalUsersCountFiltered = $derived(filteredUsers.length);
-	let totalPagesFiltered = $derived(Math.ceil(totalUsersCountFiltered / itemsPerPage));
-
-	let paginatedUsers = $derived.by(() => {
-		const start = (currentPage - 1) * itemsPerPage;
-		return filteredUsers.slice(start, start + itemsPerPage);
-	});
-
-	let users = $derived(paginatedUsers);
-
-	// Search with debounce
-	let searchTimeout: any;
-
-	function handleSearchInput() {
-		clearTimeout(searchTimeout);
-		searchTimeout = setTimeout(() => {
-			currentPage = 1;
-		}, 600);
 	}
 
-	// Filter handlers - called explicitly when filters change
+	async function loadUsers() {
+		loading = true;
+		error = null;
+		try {
+			console.log(`🔄 Fetching users page ${page} (Role: ${filterRole})...`);
+			const response = await userService.getUsers({
+				page,
+				per_page: itemsPerPage,
+				q: searchTerm,
+				// Don't send role if it's "Padre" because /papas is already role-specific
+				role: filterRole === 'Todos' || filterRole === 'Padre' ? '' : filterRole.toUpperCase()
+			});
+
+			// Resilient response handling
+			let data: User[] = [];
+			let total = 0;
+
+			if (Array.isArray(response)) {
+				data = response;
+				total = response.length;
+			} else if (response && response.data) {
+				data = response.data;
+				total = response.total !== undefined ? response.total : data.length;
+			} else if (response) {
+				// Fallback if response is object but no data/total
+				data = response.users || response.value || [];
+				total = response.total || data.length;
+			}
+
+			allUsersRaw = data;
+			totalUsers = total;
+
+			console.log(`✅ Loaded ${allUsersRaw.length} accounts. Total: ${totalUsers}`);
+		} catch (e: any) {
+			error = `Error al cargar usuarios: ${e.message || e}`;
+			console.error('Error loading users:', e);
+			allUsersRaw = [];
+			totalUsers = 0;
+		} finally {
+			loading = false;
+		}
+	}
+
 	function handleFilterChange() {
-		currentPage = 1;
+		page = 1;
+		loadUsers();
 	}
 
-	function handlePageChange(page: number) {
-		currentPage = page;
+	function handlePageChange(p: number) {
+		page = p;
+		loadUsers();
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
-	function handleLimitChange(limit: number) {
-		itemsPerPage = limit;
-		currentPage = 1;
+	let searchTimeout: any;
+	function handleSearchInput() {
+		clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => {
+			handleFilterChange();
+		}, 600);
 	}
-
-	let allUsers: User[] = $state([]); // Deprecated, using allUsersRaw
 
 	onMount(async () => {
 		await initData();
@@ -306,7 +235,7 @@
 	async function initData() {
 		isLoadingData = true;
 		try {
-			// 1. Load Courses
+			// 1. Load Courses first as it's needed for students mapping
 			const cRes = (await cursoService.getAll(0, 1000)) as any;
 			courses = Array.isArray(cRes) ? cRes : cRes.value || cRes.data || [];
 
@@ -324,80 +253,43 @@
 				levels[k] = Array.from(updatedLevels[k]).sort();
 			});
 
-			// 2. Load all students to build parent mapping
-			console.log('🔄 Loading students for mapping...');
-			const sRes = (await studentService.getAll({ page: 1, per_page: 2000 })) as any;
-			const students = Array.isArray(sRes) ? sRes : sRes.data || [];
+			// 2 & 3. Load students mapping and users in parallel to avoid bottlenecks
+			console.log('🔄 Loading students and users in parallel...');
+			await Promise.all([
+				loadUsers(),
+				(async () => {
+					try {
+						const sRes = (await studentService.getAll({ page: 1, per_page: 1500 })) as any;
+						const students = Array.isArray(sRes) ? sRes : sRes.data || [];
+						studentMapByParent = {};
+						students.forEach((s: any) => {
+							const pId = s.padre_id || s.padreId;
+							if (!pId) return;
+							if (!studentMapByParent[pId]) studentMapByParent[pId] = [];
 
-			studentMapByParent = {};
-			students.forEach((s: any) => {
-				const pId = s.padre_id || s.padreId;
-				if (!pId) return;
-				if (!studentMapByParent[pId]) studentMapByParent[pId] = [];
+							const cId = String(s.curso_id || '');
+							const c = courseMap[cId];
 
-				const cId = String(s.curso_id || '');
-				const c = courseMap[cId];
-
-				studentMapByParent[pId].push({
-					...s,
-					courseName: c ? c.nombre : s.grado || '',
-					courseLevel: c ? c.nivel : s.nivel || '',
-					courseShift: c ? c.turno : s.turno || '',
-					courseSection: c ? c.paralelo : s.seccion || ''
-				});
-			});
-
-			// 3. Load Users
-			await loadUsers();
+							studentMapByParent[pId].push({
+								...s,
+								courseName: c ? c.nombre : s.grado || '',
+								courseLevel: c ? c.nivel : s.nivel || '',
+								courseShift: c ? c.turno : s.turno || '',
+								courseSection: c ? c.paralelo : s.seccion || ''
+							});
+						});
+					} catch (studentErr) {
+						console.warn(
+							'⚠️ Error loading student mapping, users list should still work:',
+							studentErr
+						);
+					}
+				})()
+			]);
 		} catch (e) {
 			console.error('Error initializing user data:', e);
 		} finally {
 			isLoadingData = false;
-		}
-	}
-
-	async function loadUsers() {
-		loading = true;
-		error = null;
-		try {
-			let allRaw: any[] = [];
-			let pageIdx = 1;
-			const perPage = 50;
-			let hasMore = true;
-
-			console.log('🔄 Syncing all accounts...');
-
-			while (hasMore && pageIdx <= 25) {
-				try {
-					const response = await userService.getUsers({ page: pageIdx, per_page: perPage });
-					const data = Array.isArray(response) ? response : response.data || [];
-
-					if (data.length === 0) {
-						hasMore = false;
-					} else {
-						allRaw = [...allRaw, ...data];
-						const total = response.total || 0;
-						if (data.length < perPage || (total > 0 && allRaw.length >= total)) {
-							hasMore = false;
-						} else {
-							pageIdx++;
-						}
-					}
-				} catch (err) {
-					console.warn('Error fetching users page:', err);
-					hasMore = false;
-				}
-			}
-
-			allUsersRaw = allRaw;
-			totalUsersCount = allUsersRaw.length;
-			console.log(`✅ Loaded ${allUsersRaw.length} accounts.`);
-		} catch (e: any) {
-			error = `Error al cargar usuarios: ${e.message || e}`;
-			console.error('Error loading users:', e);
-			allUsersRaw = [];
-		} finally {
-			loading = false;
 		}
 	}
 
@@ -432,7 +324,8 @@
 			filterRole = 'Todos';
 			searchTerm = createdUser.email; // Auto search for the new user
 
-			const parentUser = allUsers.find((u) => u.username === createdUser.username) || createdUser;
+			const parentUser =
+				allUsersRaw.find((u) => u.username === createdUser.username) || createdUser;
 
 			// Immediately open child modal
 			if (parentUser) {
@@ -454,7 +347,7 @@
 				);
 
 				// Try to find the user in the existing list
-				const existingUser = allUsers.find(
+				const existingUser = allUsersRaw.find(
 					(u) => u.username === newParent.username || u.email === newParent.email
 				);
 
@@ -469,7 +362,7 @@
 				} else {
 					// Try to reload users then find
 					await loadUsers();
-					const reloadedUser = allUsers.find(
+					const reloadedUser = allUsersRaw.find(
 						(u) => u.username === newParent.username || u.email === newParent.email
 					);
 					if (reloadedUser) {
@@ -555,6 +448,12 @@
 			console.error(e);
 			alert('Error al eliminar hijo');
 		}
+	}
+
+	function handleLimitChange(limit: number) {
+		itemsPerPage = limit;
+		page = 1;
+		loadUsers();
 	}
 
 	function getRoleStyle(role: string) {
@@ -680,13 +579,65 @@
 		</div>
 	{/if}
 
+	<!-- Hierarchy Controls & Search -->
+	<div class="space-y-4">
+		<CourseFilter
+			{levels}
+			{courses}
+			bind:selectedLevel
+			bind:selectedGrade
+			bind:selectedShift
+			bind:selectedSection
+			onFilterChange={handleFilterChange}
+		/>
+
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
+		>
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<div>
+					<label
+						for="search-users"
+						class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label
+					>
+					<input
+						id="search-users"
+						type="text"
+						bind:value={searchTerm}
+						oninput={handleSearchInput}
+						placeholder="Buscar por nombre, usuario o email..."
+						class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+					/>
+				</div>
+				<div>
+					<label
+						for="filter-role"
+						class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+						>Filtrar por Rol</label
+					>
+					<select
+						id="filter-role"
+						bind:value={filterRole}
+						onchange={handleFilterChange}
+						class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+					>
+						<option>Todos</option>
+						<option>Admin</option>
+						<option value="Padre">Padre</option>
+						<option>User</option>
+					</select>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Total Usuarios</p>
-					<p class="text-3xl font-bold mt-2">{totalUsersCountFiltered}</p>
+					<p class="text-3xl font-bold mt-2">{totalUsers}</p>
 				</div>
 				<div class="text-5xl opacity-80">👥</div>
 			</div>
@@ -697,7 +648,11 @@
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Administradores</p>
 					<p class="text-3xl font-bold mt-2">
-						{filteredUsers.filter((u) => u.role === 'ADMIN').length}
+						{#if filterRole.toLowerCase() === 'admin'}
+							{totalUsers}
+						{:else}
+							-
+						{/if}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">🛡️</div>
@@ -709,60 +664,14 @@
 				<div>
 					<p class="text-[#F0E6D2] text-sm font-medium">Padres</p>
 					<p class="text-3xl font-bold mt-2">
-						{filteredUsers.filter((u) => u.role === 'PADRE').length}
+						{#if filterRole.toLowerCase() === 'padre'}
+							{totalUsers}
+						{:else}
+							-
+						{/if}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">👨‍👩‍👧</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Course Hierarchy Filters -->
-	<CourseFilter
-		{levels}
-		{courses}
-		bind:selectedLevel
-		bind:selectedGrade
-		bind:selectedShift
-		bind:selectedSection
-		onFilterChange={handleFilterChange}
-	/>
-
-	<div
-		class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
-	>
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-			<div>
-				<label
-					for="search-users"
-					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label
-				>
-				<input
-					id="search-users"
-					type="text"
-					bind:value={searchTerm}
-					oninput={handleSearchInput}
-					placeholder="Buscar por nombre, usuario o email..."
-					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-				/>
-			</div>
-			<div>
-				<label
-					for="filter-role"
-					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-					>Filtrar por Rol</label
-				>
-				<select
-					id="filter-role"
-					bind:value={filterRole}
-					onchange={handleFilterChange}
-					class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-				>
-					<option>Todos</option>
-					<option>Admin</option>
-					<option value="Padre">Padre</option>
-					<option>User</option>
-				</select>
 			</div>
 		</div>
 	</div>
@@ -871,11 +780,11 @@
 		{/if}
 
 		<!-- Pagination -->
-		{#if totalUsersCountFiltered > 0}
+		{#if totalUsers > 0}
 			<Pagination
-				{currentPage}
+				currentPage={page}
 				totalPages={totalPagesFiltered}
-				totalItems={totalUsersCountFiltered}
+				totalItems={totalUsers}
 				limit={itemsPerPage}
 				onPageChange={handlePageChange}
 				onLimitChange={handleLimitChange}

@@ -42,49 +42,15 @@
 	let allPayments: any[] = $state([]);
 	let levels: Record<string, string[]> = $state({});
 
-	const filteredPayments = $derived.by(() => {
-		let filtered = allPayments;
-
-		if (searchTerm) {
-			const q = searchTerm.toLowerCase();
-			filtered = filtered.filter(
-				(p) =>
-					(p.student_name || '').toLowerCase().includes(q) ||
-					(p.parent_name || '').toLowerCase().includes(q) ||
-					(p.concept || '').toLowerCase().includes(q)
-			);
-		}
-
-		if (filterStatus !== 'Todos') {
-			filtered = filtered.filter((p) => p.status === filterStatus);
-		}
-
-		if (selectedLevel) {
-			filtered = filtered.filter(
-				(p) => (p.nivel || '').toLowerCase() === selectedLevel.toLowerCase()
-			);
-		}
-
-		if (selectedGrade) {
-			filtered = filtered.filter(
-				(p) => (p.grade || '').toLowerCase() === selectedGrade.toLowerCase()
-			);
-		}
-
-		if (selectedShift) {
-			filtered = filtered.filter(
-				(p) => (p.shift || '').toLowerCase() === selectedShift.toLowerCase()
-			);
-		}
-
-		if (selectedSection) {
-			filtered = filtered.filter(
-				(p) => (p.section || '').toLowerCase() === selectedSection.toLowerCase()
-			);
-		}
-
-		return filtered;
-	});
+	let totalPaid = $derived(
+		allPayments.filter((p) => p.status === 'Pagado').reduce((sum, p) => sum + (p.amount || 0), 0)
+	);
+	let totalPending = $derived(
+		allPayments.filter((p) => p.status === 'Pendiente').reduce((sum, p) => sum + (p.amount || 0), 0)
+	);
+	let totalOverdue = $derived(
+		allPayments.filter((p) => p.status === 'Vencido').reduce((sum, p) => sum + (p.amount || 0), 0)
+	);
 
 	onMount(() => {
 		initData();
@@ -218,22 +184,6 @@
 			loadPayments();
 		}, 300);
 	}
-
-	let totalPaid = $derived(
-		filteredPayments
-			.filter((p) => p.status === 'Pagado')
-			.reduce((sum, p) => sum + (p.amount || 0), 0)
-	);
-	let totalPending = $derived(
-		filteredPayments
-			.filter((p) => p.status === 'Pendiente')
-			.reduce((sum, p) => sum + (p.amount || 0), 0)
-	);
-	let totalOverdue = $derived(
-		filteredPayments
-			.filter((p) => p.status === 'Vencido')
-			.reduce((sum, p) => sum + (p.amount || 0), 0)
-	);
 
 	function getStatusStyle(status: string) {
 		if (status === 'Pagado') return 'bg-green-100 text-green-800 border-green-200';

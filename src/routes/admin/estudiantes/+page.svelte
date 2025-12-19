@@ -19,7 +19,7 @@
 	// Form State
 	let form = $state({
 		name: '',
-		grade: '',
+		courseName: '', // Renamed from grade
 		section: '',
 		shift: 'MAÑANA',
 		parent: '',
@@ -60,6 +60,16 @@
 		'Quinto de Secundaria',
 		'Sexto de Secundaria'
 	];
+
+	let uniqueGradeNames = $derived(
+		[...new Set(courses.map((c) => c.nombre))].sort((a, b) => {
+			let idxA = gradeOrder.indexOf(a);
+			let idxB = gradeOrder.indexOf(b);
+			if (idxA === -1) idxA = gradeOrder.findIndex((g) => a.startsWith(g.split(' ')[0]));
+			if (idxB === -1) idxB = gradeOrder.findIndex((g) => b.startsWith(g.split(' ')[0]));
+			return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+		})
+	);
 
 	// Derived logic for filters
 	let availableShifts = $derived(getAvailableShifts(selectedGrade));
@@ -188,7 +198,8 @@
 					section: c ? c.paralelo : s.seccion || s.section || 'A',
 					shift: c ? c.turno : s.turno || s.shift || 'Mañana',
 					nivel: c ? c.nivel : s.nivel || 'Sin Asignar',
-					status: s.status || s.estado || 'Activo'
+					status: s.status || s.estado || 'Activo',
+					curso_id: cId
 				};
 			});
 		} catch (error) {
@@ -385,11 +396,28 @@
 		loading = true;
 		try {
 			const { nombres, apellidos } = splitName(form.name);
+
+			// Find the correct curso_id based on selection
+			const matchedCourse = courses.find(
+				(c) =>
+					c.nombre === form.courseName &&
+					c.turno.toUpperCase() === form.shift.toUpperCase() &&
+					c.paralelo.toUpperCase() === form.section.toUpperCase()
+			);
+
+			if (!matchedCourse) {
+				alert(
+					`No se encontró un curso para: ${form.courseName} - ${form.section} (${form.shift}). Por favor verifique los datos.`
+				);
+				loading = false;
+				return;
+			}
+
 			const payload = {
 				rude: editingStudent?.rude || '0',
 				nombres,
 				apellidos: apellidos || '.',
-				curso_id: form.grade,
+				curso_id: matchedCourse._id || matchedCourse.id,
 				turno: form.shift,
 				estado: form.status.toUpperCase()
 			};
@@ -398,7 +426,7 @@
 				await studentService.update(editingStudent.id, payload);
 				alert('Estudiante actualizado correctamente');
 			} else {
-				const result = (await studentService.create(payload)) as any;
+				await studentService.create(payload);
 				alert('Estudiante creado correctamente');
 			}
 
@@ -417,8 +445,8 @@
 		editingStudent = null;
 		form = {
 			name: '',
-			grade: courses[0]?._id || '',
-			section: '',
+			courseName: uniqueGradeNames[0] || '',
+			section: 'A',
 			shift: 'MAÑANA',
 			parent: '',
 			email: '',
@@ -432,7 +460,7 @@
 		editingStudent = student;
 		form = {
 			name: student.name,
-			grade: student.curso_id,
+			courseName: student.grade,
 			section: student.section,
 			shift: student.shift.toUpperCase(),
 			parent: student.parent,
@@ -540,7 +568,7 @@
 		<div class="bg-gradient-to-br from-[#8B5A1B] to-[#AA7229] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#F0E6D2] text-sm font-medium">Grados</p>
+					<p class="text-[#F0E6D2] text-sm font-medium">Cursos</p>
 					<p class="text-3xl font-bold mt-2">
 						{gradeCount}
 					</p>
@@ -702,7 +730,7 @@
 	</div>
 
 	<!-- Pagination -->
-	{#if totalStudents > 0}
+	{#if totalStudentsCount > 0}
 		<div
 			class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
 		>
@@ -745,17 +773,15 @@
 					<div>
 						<label
 							for="student-grade"
-							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Grado</label
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Curso</label
 						>
 						<select
 							id="student-grade"
 							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-							bind:value={form.grade}
+							bind:value={form.courseName}
 						>
-							{#each courses as course}
-								<option value={course._id}
-									>{course.nombre} - {course.paralelo} ({course.turno})</option
-								>
+							{#each uniqueGradeNames as name}
+								<option value={name}>{name}</option>
 							{/each}
 						</select>
 					</div>
@@ -789,13 +815,25 @@
 							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
 							>Sección</label
 						>
-						<input
-							id="student-section"
-							type="text"
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-							bind:value={form.section}
-							placeholder="A, B"
-						/>
+						<div
+							class="flex rounded-xl overflow-hidden border border-gray-300 dark:border-gray-600"
+						>
+							<button
+								type="button"
+								onclick={() => (form.section = 'A')}
+								class={`flex-1 py-1.5 font-bold transition-all ${form.section === 'A' ? 'bg-pink-100 text-pink-700' : 'bg-white dark:bg-gray-700 text-gray-500'}`}
+							>
+								A
+							</button>
+							<div class="w-px bg-gray-300 dark:bg-gray-600"></div>
+							<button
+								type="button"
+								onclick={() => (form.section = 'B')}
+								class={`flex-1 py-1.5 font-bold transition-all ${form.section === 'B' ? 'bg-pink-100 text-pink-700' : 'bg-white dark:bg-gray-700 text-gray-500'}`}
+							>
+								B
+							</button>
+						</div>
 					</div>
 					<div>
 						<label

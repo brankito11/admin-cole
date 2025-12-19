@@ -41,51 +41,19 @@
 	let total = $state(0);
 	let totalPages = $state(0);
 
-	const filteredLicenses = $derived.by(() => {
-		let filtered = allLicenses;
+	let users = $derived(allLicenses);
+	let totalPagesFiltered = $derived(totalPages);
+	let totalItemsCount = $derived(total);
 
-		if (searchTerm) {
-			const q = searchTerm.toLowerCase();
-			filtered = filtered.filter(
-				(license) =>
-					(license.student || '').toLowerCase().includes(q) ||
-					(license.parent || '').toLowerCase().includes(q) ||
-					(license.type || '').toLowerCase().includes(q)
-			);
-		}
-
-		if (filterStatus !== 'Todos') {
-			filtered = filtered.filter((license) => license.status === filterStatus);
-		}
-
-		if (selectedLevel) {
-			filtered = filtered.filter(
-				(l) => (l.nivel || '').toLowerCase() === selectedLevel.toLowerCase()
-			);
-		}
-		if (selectedGrade) {
-			filtered = filtered.filter(
-				(l) => (l.grade || '').toLowerCase() === selectedGrade.toLowerCase()
-			);
-		}
-		if (selectedShift) {
-			filtered = filtered.filter(
-				(l) => (l.shift || '').toLowerCase() === selectedShift.toLowerCase()
-			);
-		}
-		if (selectedSection) {
-			filtered = filtered.filter(
-				(l) => (l.section || '').toLowerCase() === selectedSection.toLowerCase()
-			);
-		}
-
-		return filtered;
-	});
-
-	let paginatedLicenses = $derived(filteredLicenses.slice((page - 1) * perPage, page * perPage));
-
-	function handleFilterChange() {
+	async function handleFilterChange() {
 		page = 1;
+		await loadLicenses();
+	}
+
+	async function handlePageChange(p: number) {
+		page = p;
+		await loadLicenses();
+		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
 	onMount(async () => {
@@ -123,8 +91,20 @@
 	async function loadLicenses() {
 		loading = true;
 		try {
-			const response = await licenciaService.getAll({ page: 1, per_page: 500 });
-			const rawData = Array.isArray(response) ? response : (response as any).data || [];
+			const filters: any = {
+				page,
+				per_page: perPage
+			};
+
+			if (searchTerm) filters.q = searchTerm;
+			if (filterStatus !== 'Todos') filters.estado = filterStatus;
+			if (selectedLevel) filters.nivel = selectedLevel;
+			if (selectedGrade) filters.grado = selectedGrade;
+			if (selectedShift) filters.turno = selectedShift;
+			if (selectedSection) filters.paralelo = selectedSection;
+
+			const response = await licenciaService.getAll(filters);
+			const rawData = (response as any).data || (Array.isArray(response) ? response : []);
 
 			allLicenses = rawData.map((l: any) => {
 				const c = courseMap[l.curso_id || ''];
@@ -138,13 +118,26 @@
 					section: c ? c.paralelo : l.seccion || 'A'
 				};
 			});
-			total = allLicenses.length;
-			totalPages = Math.ceil(total / perPage);
+
+			total = (response as any).total || allLicenses.length;
+			totalPages = (response as any).total_pages || Math.ceil(total / perPage);
 		} catch (e) {
 			console.error('Load licencias error:', e);
+			allLicenses = [];
+			total = 0;
+			totalPages = 0;
 		} finally {
 			loading = false;
 		}
+	}
+
+	let searchTimeout: any;
+	function handleSearchInput() {
+		clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => {
+			page = 1;
+			loadLicenses();
+		}, 500);
 	}
 
 	function getStatusStyle(status: string) {
@@ -294,6 +287,7 @@
 					id="search-license"
 					type="text"
 					bind:value={searchTerm}
+					oninput={handleSearchInput}
 					placeholder="Buscar por estudiante, padre o tipo..."
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				/>
@@ -307,6 +301,7 @@
 				<select
 					id="status-license"
 					bind:value={filterStatus}
+					onchange={handleFilterChange}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				>
 					<option>Todos</option>
@@ -361,7 +356,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200">
-					{#each paginatedLicenses as license}
+					{#each allLicenses as license}
 						<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
 							<td
 								class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
@@ -411,13 +406,15 @@
 			</table>
 		</div>
 		<!-- Pagination -->
-		<Pagination
-			currentPage={page}
-			{totalPages}
-			totalItems={total}
-			limit={perPage}
-			onPageChange={(p) => (page = p)}
-		/>
+		{#if total > 0}
+			<Pagination
+				currentPage={page}
+				{totalPages}
+				totalItems={total}
+				limit={perPage}
+				onPageChange={handlePageChange}
+			/>
+		{/if}
 	</div>
 </div>
 

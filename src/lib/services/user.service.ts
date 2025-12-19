@@ -6,9 +6,19 @@ class UserService {
 	// NOTA: El endpoint /papas NO soporta paginación, devuelve todos los usuarios
 	async getUsers(filters: any = {}): Promise<any> {
 		try {
-			const { page = 1, per_page = 50 } = filters;
-			// El endpoint /papas soporta paginación por page y per_page similar a estudiantes
-			const response = await apiCole.get<any>(`/papas?page=${page}&per_page=${per_page}`);
+			const { page = 1, per_page = 10, q = '', role = '' } = filters;
+
+			const params = new URLSearchParams();
+			params.append('page', String(page));
+			params.append('per_page', String(per_page));
+			params.append('skip', String((page - 1) * per_page));
+			params.append('limit', String(per_page));
+
+			if (q) params.append('q', q);
+			if (role) params.append('role', role);
+
+			const url = `/papas?${params.toString()}`;
+			const response = await apiCole.get<any>(url);
 			return response;
 		} catch (error) {
 			console.error('💥 Get Users exception:', error);

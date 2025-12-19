@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { reunionService, cursoService } from '$lib/services';
 	import { AUTH_TOKEN_KEY } from '$lib/constants';
+	import Pagination from '$lib/components/pagination.svelte';
 	import type { Reunion, ReunionCreate, ReunionUpdate } from '$lib/interfaces';
 	import CourseFilter from '$lib/components/CourseFilter.svelte';
 
@@ -64,22 +65,62 @@
 		}
 	}
 
+	// Pagination states
+	let page = $state(1);
+	let perPage = $state(10);
+	let total = $state(0);
+	let totalPages = $state(0);
+
 	async function loadReuniones() {
 		loading = true;
 		error = '';
 		try {
-			// Removed manual token check, apiCole handles it
-			const response = await reunionService.getAllReuniones();
-			// Handle potentially different response structures
+			const filters: any = {
+				page,
+				per_page: perPage,
+				q: searchTerm,
+				tema: filterType === 'Todos' ? '' : filterType,
+				status: filterStatus === 'Todos' ? '' : filterStatus,
+				nivel: selectedLevel,
+				grado: selectedGrade,
+				turno: selectedShift,
+				paralelo: selectedSection
+			};
+
+			const response = await reunionService.getAllReuniones(filters);
 			const data = (response as any).data || response;
 			reuniones = Array.isArray(data) ? data : [];
+
+			total = (response as any).total || reuniones.length;
+			totalPages = (response as any).total_pages || Math.ceil(total / perPage);
 		} catch (err: any) {
 			console.error('Error loading reuniones:', err);
 			error = err.message || 'Error al cargar reuniones.';
 			reuniones = [];
+			total = 0;
+			totalPages = 0;
 		} finally {
 			loading = false;
 		}
+	}
+
+	function handleFilterChange() {
+		page = 1;
+		loadReuniones();
+	}
+
+	function handlePageChange(p: number) {
+		page = p;
+		loadReuniones();
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	}
+
+	let searchTimeout: any;
+	function handleSearchInput() {
+		clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => {
+			handleFilterChange();
+		}, 600);
 	}
 
 	function openCreateModal() {
@@ -162,42 +203,6 @@
 	function cancelDelete() {
 		showDeleteConfirm = false;
 		reunionToDelete = null;
-	}
-
-	const filteredReuniones = $derived(
-		reuniones.filter((r: any) => {
-			const matchesSearch =
-				r.nombre_reunion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				r.tema.toLowerCase().includes(searchTerm.toLowerCase());
-
-			const matchesType = filterType === 'Todos' || r.tema === filterType;
-
-			// Calculate status based on date
-			const reunionDate = new Date(r.fecha);
-			const today = new Date();
-			today.setHours(0, 0, 0, 0);
-			reunionDate.setHours(0, 0, 0, 0);
-			const status = reunionDate < today ? 'Completada' : 'Programada';
-
-			const matchesStatus = filterStatus === 'Todos' || status === filterStatus;
-
-			// Hierarchy filtering (if applicable to meeting data)
-			// Assuming r might have curso_id or similar. If not, this is a placeholder
-			// for future consistency where meetings are tied to courses.
-			let matchesHierarchy = true;
-			if (selectedLevel && r.nivel)
-				matchesHierarchy =
-					matchesHierarchy && r.nivel.toLowerCase() === selectedLevel.toLowerCase();
-			if (selectedGrade && r.grado)
-				matchesHierarchy =
-					matchesHierarchy && r.grado.toLowerCase() === selectedGrade.toLowerCase();
-
-			return matchesSearch && matchesType && matchesStatus && matchesHierarchy;
-		})
-	);
-
-	function handleFilterChange() {
-		// page = 1; (if paginated)
 	}
 
 	const programadas = $derived(
@@ -320,6 +325,7 @@
 					id="search-meeting"
 					type="text"
 					bind:value={searchTerm}
+					oninput={handleSearchInput}
 					placeholder="Buscar por título o tema..."
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				/>
@@ -333,6 +339,7 @@
 				<select
 					id="theme-filter"
 					bind:value={filterType}
+					onchange={handleFilterChange}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				>
 					<option>Todos</option>
@@ -347,6 +354,7 @@
 				<select
 					id="status-meeting"
 					bind:value={filterStatus}
+					onchange={handleFilterChange}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				>
 					<option>Todos</option>
@@ -365,7 +373,7 @@
 			<div class="flex items-center justify-center py-20">
 				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
 			</div>
-		{:else if filteredReuniones.length === 0}
+		{:else if reuniones.length === 0}
 			<div class="text-center py-20">
 				<div class="text-6xl mb-4">📅</div>
 				<p class="text-gray-500 text-lg">No se encontraron reuniones</p>
@@ -403,7 +411,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200">
-						{#each filteredReuniones as reunion}
+						{#each reuniones as reunion}
 							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
 								<td class="px-6 py-4">
 									<div class="text-sm font-semibold text-gray-900 dark:text-white">
@@ -460,6 +468,17 @@
 					</tbody>
 				</table>
 			</div>
+
+			<!-- Pagination -->
+			{#if total > 0}
+				<Pagination
+					currentPage={page}
+					{totalPages}
+					totalItems={total}
+					limit={perPage}
+					onPageChange={handlePageChange}
+				/>
+			{/if}
 		{/if}
 	</div>
 </div>

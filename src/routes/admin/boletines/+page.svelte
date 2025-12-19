@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { libretaService } from '$lib/services';
 	import { cursoService } from '$lib/services/curso.service';
+	import Pagination from '$lib/components/pagination.svelte';
+	import CourseFilter from '$lib/components/CourseFilter.svelte';
 
 	let showModal = false;
 	let editingBoletin: any = null;
@@ -165,52 +167,49 @@
 		}
 	}
 
+	function handlePageChange(p: number) {
+		page = p;
+		loadBoletines();
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	}
+
+	function handleFilterChange() {
+		page = 1;
+		loadBoletines();
+	}
+
 	function selectLevel(level: string) {
 		selectedLevel = level;
 		selectedGrade = '';
 		selectedShift = '';
 		selectedSection = '';
-		page = 1;
+		handleFilterChange();
 	}
 
 	function selectGrade(grade: string) {
 		selectedGrade = grade;
 		selectedShift = '';
 		selectedSection = '';
-		page = 1;
+		handleFilterChange();
 	}
 
 	function selectShift(shift: string) {
 		selectedShift = shift;
 		selectedSection = '';
-		page = 1;
+		handleFilterChange();
 	}
 
 	function selectSection(section: string) {
 		selectedSection = section;
-		page = 1;
+		handleFilterChange();
 	}
 
 	let searchTimeout: any;
-	$: {
-		const deps = [
-			page,
-			selectedLevel,
-			selectedGrade,
-			selectedShift,
-			selectedSection,
-			filterStatus,
-			filterDate
-		];
-		loadBoletines();
-	}
-
 	function handleSearchInput() {
 		clearTimeout(searchTimeout);
 		searchTimeout = setTimeout(() => {
-			page = 1;
-			loadBoletines();
-		}, 300);
+			handleFilterChange();
+		}, 600);
 	}
 
 	const getStatusStyle = (status: string) => {
@@ -264,7 +263,7 @@
 			</p>
 		</div>
 		<button
-			on:click={handleCreate}
+			onclick={handleCreate}
 			class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#5a6640] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
@@ -278,7 +277,7 @@
 		<div class="flex flex-wrap gap-4">
 			{#each Object.keys(levels) as level}
 				<button
-					on:click={() => selectLevel(level)}
+					onclick={() => selectLevel(level)}
 					class="px-8 py-3 rounded-t-2xl font-bold transition-all text-lg flex-1 md:flex-none border-b-2
 					{selectedLevel === level
 						? 'bg-white dark:bg-gray-800 text-blue-600 border-blue-500 shadow-sm'
@@ -305,7 +304,7 @@
 					<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
 						{#each levels[selectedLevel] as grade}
 							<button
-								on:click={() => selectGrade(grade)}
+								onclick={() => selectGrade(grade)}
 								class="px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
 								{selectedGrade === grade
 									? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:border-blue-500 dark:text-blue-300 shadow-md transform scale-105'
@@ -332,7 +331,7 @@
 							<div class="flex gap-3">
 								{#each availableShifts as shift}
 									<button
-										on:click={() => selectShift(shift)}
+										onclick={() => selectShift(shift)}
 										class="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
 										{selectedShift === shift
 											? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-900/20 dark:border-purple-500 dark:text-purple-300 shadow-md'
@@ -355,7 +354,7 @@
 								<div class="flex gap-3">
 									{#each availableSections as section}
 										<button
-											on:click={() => selectSection(section)}
+											onclick={() => selectSection(section)}
 											class="w-14 h-12 rounded-xl text-lg font-bold transition-all flex items-center justify-center border-2
 											{selectedSection === section
 												? 'bg-pink-50 border-pink-500 text-pink-700 dark:bg-pink-900/20 dark:border-pink-500 dark:text-pink-300 shadow-md'
@@ -426,23 +425,29 @@
 	>
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-					>Buscar</label
+				<label
+					for="search-libreta"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label
 				>
 				<input
+					id="search-libreta"
 					type="text"
 					bind:value={searchTerm}
-					on:input={handleSearchInput}
+					oninput={handleSearchInput}
 					placeholder="Buscar por estudiante o período..."
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				/>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+				<label
+					for="status-libreta"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
 					>Filtrar por Estado</label
 				>
 				<select
+					id="status-libreta"
 					bind:value={filterStatus}
+					onchange={handleFilterChange}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				>
 					<option>Todos</option>
@@ -451,12 +456,16 @@
 				</select>
 			</div>
 			<div>
-				<label class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+				<label
+					for="date-libreta"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
 					>Filtrar por Fecha</label
 				>
 				<input
+					id="date-libreta"
 					type="date"
 					bind:value={filterDate}
+					onchange={handleFilterChange}
 					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				/>
 			</div>
@@ -549,14 +558,14 @@
 								<td class="px-6 py-4 whitespace-nowrap text-sm">
 									<div class="flex items-center gap-2">
 										<button
-											on:click={() => handleEdit(boletin)}
+											onclick={() => handleEdit(boletin)}
 											class="text-blue-600 hover:text-blue-900 font-medium"
 											title="Editar"
 										>
 											✏️
 										</button>
 										<button
-											on:click={() => handleDelete(boletin.id)}
+											onclick={() => handleDelete(boletin.id)}
 											class="text-red-600 hover:text-red-900 font-medium"
 											title="Eliminar"
 										>
@@ -577,35 +586,15 @@
 			</div>
 
 			<!-- Pagination -->
-			<div
-				class="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-600"
-			>
-				<div class="text-sm text-gray-700 dark:text-gray-300">
-					Mostrando <span class="font-semibold">{(page - 1) * perPage + 1}</span> a
-					<span class="font-semibold">{Math.min(page * perPage, total)}</span> de
-					<span class="font-semibold">{total}</span> resultados
-				</div>
-				<div class="flex items-center gap-2">
-					<button
-						disabled={page === 1}
-						on:click={() => page--}
-						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
-					>
-						Anterior
-					</button>
-					<span class="text-sm text-gray-700 dark:text-gray-300">
-						Página <span class="font-semibold">{page}</span> de
-						<span class="font-semibold">{totalPages}</span>
-					</span>
-					<button
-						disabled={page >= totalPages}
-						on:click={() => page++}
-						class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700"
-					>
-						Siguiente
-					</button>
-				</div>
-			</div>
+			{#if total > 0}
+				<Pagination
+					currentPage={page}
+					{totalPages}
+					totalItems={total}
+					limit={perPage}
+					onPageChange={handlePageChange}
+				/>
+			{/if}
 		{/if}
 	</div>
 </div>

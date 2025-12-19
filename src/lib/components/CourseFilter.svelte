@@ -113,7 +113,7 @@
 					class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
 				>
 					<span class="w-2 h-2 rounded-full bg-blue-500"></span>
-					Grado / Curso
+					Curso
 				</h3>
 				<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
 					{#each levels[selectedLevel] as grade}
@@ -166,7 +166,7 @@
 								class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
 							>
 								<span class="w-2 h-2 rounded-full bg-pink-500"></span>
-								Paralelo
+								Sección
 							</h3>
 							<div class="flex flex-wrap gap-2">
 								{#each availableSections as section}
