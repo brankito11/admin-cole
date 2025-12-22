@@ -18,12 +18,12 @@ class PagoService {
 			if (rest[key]) params.append(key, rest[key]);
 		});
 
-		return await apiCole.get(`/pagos/?${params.toString()}`);
+		return await apiCole.get(`/pagos?${params.toString()}`);
 	}
 
 	// Create new pago
 	async create(pago: any) {
-		return await apiCole.post('/pagos/', pago);
+		return await apiCole.post('/pagos', pago);
 	}
 
 	// Update existing pago

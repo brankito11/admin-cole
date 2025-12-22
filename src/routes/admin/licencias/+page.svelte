@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { licenciaService } from '$lib/services/licencia.service';
+	import { studentService } from '$lib/services/student.service';
+	import { userService } from '$lib/services/user.service';
 	import { cursoService } from '$lib/services/curso.service';
 	import Pagination from '$lib/components/pagination.svelte';
 	import CourseFilter from '$lib/components/CourseFilter.svelte';
+	import type { User } from '$lib/interfaces';
 
 	let showModal = $state(false);
 	let editingLicense: any = $state(null);
@@ -16,7 +19,9 @@
 
 	let formData = $state({
 		student: '',
+		student_id: '',
 		parent: '',
+		parent_id: '',
 		type: 'Permiso Médico',
 		date: '',
 		duration: '',
@@ -24,6 +29,18 @@
 		reason: '',
 		grade: ''
 	});
+
+	// Student Search
+	let showStudentModal = $state(false);
+	let studentSearch = $state('');
+	let foundStudents: any[] = $state([]);
+	let searchingStudents = $state(false);
+
+	// Parent Search
+	let showParentModal = $state(false);
+	let parentSearch = $state('');
+	let foundParents: User[] = $state([]);
+	let searchingParents = $state(false);
 
 	let allLicenses: any[] = $state([]);
 	let searchTerm = $state('');
@@ -172,27 +189,100 @@
 		await loadLicenses();
 	}
 
-	async function handleReject(id: number) {
-		// await licenciaService.reject(id)
-		await loadLicenses();
+	async function handleDelete(id: number | string) {
+		if (!confirm('¿Estás seguro de eliminar esta licencia?')) return;
+		loading = true;
+		try {
+			await licenciaService.deleteLicencia(id);
+			alert('Licencia eliminada');
+			await loadLicenses();
+		} catch (error: any) {
+			console.error('Error deleting license:', error);
+			alert(`Error al eliminar: ${error.message || 'Error desconocido'}`);
+		} finally {
+			loading = false;
+		}
 	}
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 		loading = true;
 		try {
+			// Ensure we send IDs if available
+			const payload = {
+				...formData,
+				estudiante_id: formData.student_id,
+				padre_id: formData.parent_id
+			};
+
 			if (editingLicense) {
-				// await licenciaService.update(...)
+				await licenciaService.updateLicencia(editingLicense.id, payload as any);
+				alert('Licencia actualizada correctamente');
 			} else {
-				await licenciaService.createLicencia(formData as any);
+				await licenciaService.createLicencia(payload as any);
+				alert('Licencia creada correctamente');
 			}
 			showModal = false;
 			await loadLicenses();
-		} catch (error) {
+		} catch (error: any) {
 			console.error('Error saving license:', error);
+			const msg = error?.body?.message || error?.message || 'Error desconocido';
+			alert(`Error al guardar licencia: ${msg}`);
 		} finally {
 			loading = false;
 		}
+	}
+
+	// Selection Handlers
+	async function searchStudents() {
+		if (!studentSearch) return;
+		searchingStudents = true;
+		try {
+			const res = (await studentService.getAll({ q: studentSearch, per_page: 5 })) as any;
+			foundStudents = Array.isArray(res) ? res : res.data || [];
+		} catch (e) {
+			console.error(e);
+		} finally {
+			searchingStudents = false;
+		}
+	}
+
+	async function searchParents() {
+		if (!parentSearch) return;
+		searchingParents = true;
+		try {
+			const res = await userService.getUsers({ q: parentSearch, role: 'PADRE', per_page: 5 });
+			foundParents = res.data || [];
+		} catch (e) {
+			console.error(e);
+		} finally {
+			searchingParents = false;
+		}
+	}
+
+	function selectStudent(student: any) {
+		formData.student = student.nombres + ' ' + student.apellidos;
+		formData.student_id = student.id || student._id;
+
+		// Auto-fill grade
+		const curso = courseMap[student.curso_id];
+		if (curso) {
+			formData.grade = curso.nombre;
+		} else {
+			formData.grade = student.grade || student.grado || '';
+		}
+
+		showStudentModal = false;
+		studentSearch = '';
+		foundStudents = [];
+	}
+
+	function selectParent(parent: User) {
+		formData.parent = parent.nombre + ' ' + parent.apellido;
+		formData.parent_id = parent.id;
+		showParentModal = false;
+		parentSearch = '';
+		foundParents = [];
 	}
 </script>
 
@@ -434,13 +524,24 @@
 							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
 							>Estudiante</label
 						>
-						<input
-							id="student-name"
-							type="text"
-							bind:value={formData.student}
-							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-						/>
+						<div class="flex gap-2">
+							<input
+								id="student-name"
+								type="text"
+								bind:value={formData.student}
+								placeholder="Selecciona un estudiante..."
+								readonly
+								required
+								class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+							/>
+							<button
+								type="button"
+								onclick={() => (showStudentModal = true)}
+								class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+							>
+								🔍
+							</button>
+						</div>
 					</div>
 					<div>
 						<label
@@ -448,13 +549,24 @@
 							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
 							>Padre/Tutor</label
 						>
-						<input
-							id="parent-name"
-							type="text"
-							bind:value={formData.parent}
-							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-						/>
+						<div class="flex gap-2">
+							<input
+								id="parent-name"
+								type="text"
+								bind:value={formData.parent}
+								placeholder="Selecciona un tutor..."
+								readonly
+								required
+								class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+							/>
+							<button
+								type="button"
+								onclick={() => (showParentModal = true)}
+								class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
+							>
+								🔍
+							</button>
+						</div>
 					</div>
 					<div>
 						<label
@@ -559,6 +671,119 @@
 					</button>
 				</div>
 			</form>
+		</div>
+	</div>
+{/if}
+
+{#if showStudentModal}
+	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-slide-up"
+		>
+			<div class="flex justify-between items-center mb-4">
+				<h3 class="text-xl font-bold text-gray-900 dark:text-white">Buscar Estudiante</h3>
+				<button onclick={() => (showStudentModal = false)} class="text-gray-500 hover:text-gray-700"
+					>✕</button
+				>
+			</div>
+			<div class="space-y-4">
+				<div class="flex gap-2">
+					<input
+						type="text"
+						bind:value={studentSearch}
+						placeholder="Nombre o RUDE..."
+						class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+						onkeydown={(e) => e.key === 'Enter' && searchStudents()}
+					/>
+					<button
+						onclick={searchStudents}
+						disabled={searchingStudents}
+						class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50"
+					>
+						{searchingStudents ? '...' : '🔍'}
+					</button>
+				</div>
+				<div class="max-h-60 overflow-y-auto space-y-2">
+					{#each foundStudents as student}
+						<button
+							onclick={() => selectStudent(student)}
+							class="w-full text-left p-3 border border-gray-100 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+						>
+							<p class="font-bold text-gray-900 dark:text-white">
+								{student.nombres}
+								{student.apellidos}
+							</p>
+							<p class="text-xs text-gray-500">
+								{student.grade || student.grado || 'Sin Grado'}
+								{#if student.paralelo || student.seccion}
+									• Sección {student.paralelo || student.seccion}
+								{/if}
+								{#if student.turno}
+									• {student.turno}
+								{/if}
+							</p>
+							<p class="text-xs text-gray-400">
+								RUDE: {student.rude || 'Sin RUDE'}
+							</p>
+						</button>
+					{:else}
+						{#if !searchingStudents && studentSearch}
+							<p class="text-center py-4 text-gray-500">No se encontraron estudiantes</p>
+						{/if}
+					{/each}
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showParentModal}
+	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 animate-slide-up"
+		>
+			<div class="flex justify-between items-center mb-4">
+				<h3 class="text-xl font-bold text-gray-900 dark:text-white">Buscar Tutor</h3>
+				<button onclick={() => (showParentModal = false)} class="text-gray-500 hover:text-gray-700"
+					>✕</button
+				>
+			</div>
+			<div class="space-y-4">
+				<div class="flex gap-2">
+					<input
+						type="text"
+						bind:value={parentSearch}
+						placeholder="Nombre o Email..."
+						class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+						onkeydown={(e) => e.key === 'Enter' && searchParents()}
+					/>
+					<button
+						onclick={searchParents}
+						disabled={searchingParents}
+						class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50"
+					>
+						{searchingParents ? '...' : '🔍'}
+					</button>
+				</div>
+				<div class="max-h-60 overflow-y-auto space-y-2">
+					{#each foundParents as parent}
+						<button
+							onclick={() => selectParent(parent)}
+							class="w-full text-left p-3 border border-gray-100 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+						>
+							<p class="font-bold text-gray-900 dark:text-white">
+								{parent.nombre}
+								{parent.apellido}
+							</p>
+							<p class="text-xs text-gray-500">{parent.email}</p>
+						</button>
+					{:else}
+						{#if !searchingParents && parentSearch}
+							<p class="text-center py-4 text-gray-500">No se encontraron tutores</p>
+						{/if}
+					{/each}
+				</div>
+			</div>
 		</div>
 	</div>
 {/if}

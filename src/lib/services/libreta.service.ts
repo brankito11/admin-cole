@@ -38,12 +38,12 @@ class LibretaService {
 			if (rest[key]) params.append(key, rest[key]);
 		});
 
-		return await apiCole.get<LibretaListResponse | Libreta[]>(`/libretas/?${params.toString()}`);
+		return await apiCole.get<LibretaListResponse | Libreta[]>(`/libretas?${params.toString()}`);
 	}
 
 	// Create new libreta
 	async create(libreta: any) {
-		return await apiCole.post('/libretas/', libreta);
+		return await apiCole.post('/libretas', libreta);
 	}
 
 	// Update existing libreta

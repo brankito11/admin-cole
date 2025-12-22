@@ -56,6 +56,7 @@ class ApiCole {
 
 			const fullUrl = `${API_CONFIG.BASE_URL}/api${endpoint}`;
 			console.log(`📡 Fetching: ${method} ${fullUrl}`);
+
 			const response = await fetch(fullUrl, {
 				method,
 				headers,
@@ -72,7 +73,20 @@ class ApiCole {
 
 			// Manejar errores de respuesta
 			if (!response.ok) {
-				const errorBody = await response.json().catch(() => ({}));
+				let errorBody: any = {};
+				try {
+					errorBody = await response.json();
+				} catch (e) {
+					try {
+						const text = await response.text();
+						errorBody = { message: text };
+					} catch (e2) {
+						errorBody = { message: 'Error desconocido en la respuesta' };
+					}
+				}
+
+				console.error(`❌ API Error (${response.status} ${response.statusText}):`, errorBody);
+
 				const errorType = errorService.mapHttpToErrorType(response.status);
 
 				// Si es error 401, limpiar token
@@ -83,11 +97,7 @@ class ApiCole {
 					}
 				}
 
-				throw new AppError(
-					errorBody.message || errorBody.detail || 'Error en la solicitud',
-					errorType,
-					response.status
-				);
+				throw new AppError(this.formatErrorMessage(errorBody), errorType, response.status);
 			}
 
 			return response.json();
@@ -95,20 +105,51 @@ class ApiCole {
 			clearTimeout(timeoutId);
 
 			if (error instanceof DOMException && error.name === 'AbortError') {
-				throw new AppError('Solicitud cancelada por timeout', ErrorType.NETWORK, 408);
+				throw new AppError(
+					'Solicitud cancelada por timeout después de 60s. El servidor puede estar iniciándose.',
+					ErrorType.NETWORK,
+					408
+				);
 			}
 
 			if (error instanceof AppError) {
 				throw error; // Re-throw AppError sin modificar
 			}
 
+			console.error('💥 Fetch Exception:', error);
+
+			// Check if it's a TypeError (usually network error like CORS or offline)
+			const errorObj = error as any;
+			const isNetworkErr = errorObj instanceof TypeError || errorObj?.name === 'TypeError';
+
 			throw new AppError(
-				'Error de red',
+				isNetworkErr
+					? 'Error de red (CORS o conexión perdida)'
+					: 'Error inesperado en la solicitud',
 				ErrorType.NETWORK,
 				undefined,
 				error instanceof Error ? error : undefined
 			);
 		}
+	}
+
+	private formatErrorMessage(errorBody: any): string {
+		if (typeof errorBody.detail === 'string') return errorBody.detail;
+		if (Array.isArray(errorBody.detail)) {
+			return errorBody.detail
+				.map((err: any) => {
+					if (typeof err === 'string') return err;
+					if (err.msg && err.loc) return `${err.loc.join('.')}: ${err.msg}`;
+					return JSON.stringify(err);
+				})
+				.join(', ');
+		}
+		return (
+			errorBody.message ||
+			errorBody.error ||
+			(typeof errorBody.detail === 'object' ? JSON.stringify(errorBody.detail) : undefined) ||
+			'Error en la solicitud'
+		);
 	}
 
 	// Métodos para diferentes tipos de solicitudes

@@ -37,17 +37,17 @@ class StudentService {
 
 		try {
 			// Using the standard endpoint from Swagger
-			const response = await apiCole.get(`/estudiantes/?${params.toString()}`);
+			const response = await apiCole.get(`/estudiantes?${params.toString()}`);
 			return response;
 		} catch (error) {
 			console.warn('⚠️ /estudiantes failed, attempting fallback to /students');
-			return await apiCole.get(`/students/?${params.toString()}`);
+			return await apiCole.get(`/students?${params.toString()}`);
 		}
 	}
 
 	// Create new student
 	async create(student: any) {
-		return await apiCole.post('/estudiantes/', student);
+		return await apiCole.post('/estudiantes', student);
 	}
 
 	// Update existing student

@@ -21,6 +21,6 @@ export const defaultHeaders: HeadersInit = {
 
 export const API_CONFIG = {
 	BASE_URL: API_BASE_URL,
-	TIMEOUT: 30000,
+	TIMEOUT: 60000, // 60 segundos - aumentado para manejar cold starts de Render
 	MAX_RETRIES: 3
 } as const;

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { authService } from '$lib/services/auth.service';
 	import { userService } from '$lib/services/user.service';
+	import { padreService } from '$lib/services/padre.service';
 	import { hijoService } from '$lib/services/hijo.service';
 	import { auth } from '$lib/stores/auth';
 	import type {
@@ -50,6 +51,17 @@
 	let creatingAdmin = $state(false);
 	let searchTerm = $state('');
 	let filterRole = $state('Padre');
+
+	// Linking Student State
+	let showLinkModal = $state(false);
+	let allStudentsLink: any[] = $state([]);
+	let studentSearch = $state('');
+	let linkPage = $state(1);
+	let linkPerPage = $state(10);
+	let linkTotal = $state(0);
+	let linkTotalPages = $derived(Math.ceil(linkTotal / linkPerPage));
+	let isLoadingLinkStudents = $state(false);
+	let linkingStudentId = $state('');
 
 	// Batch Upload UI State
 	let isDragging = $state(false);
@@ -105,10 +117,9 @@
 	// Parent Management State
 	let showParentModal = $state(false);
 	let creatingParent = $state(false);
-	let newParent: RegisterCredentials = $state({
+	let newParent = $state({
 		email: '',
 		password: '',
-		username: '',
 		nombre: '',
 		apellido: ''
 	});
@@ -195,7 +206,10 @@
 				total = response.total || data.length;
 			}
 
-			allUsersRaw = data;
+			allUsersRaw = data.map((u: any) => ({
+				...u,
+				_id: u._id || u.id || ''
+			}));
 			totalUsers = total;
 
 			console.log(`✅ Loaded ${allUsersRaw.length} accounts. Total: ${totalUsers}`);
@@ -263,20 +277,30 @@
 						const students = Array.isArray(sRes) ? sRes : sRes.data || [];
 						studentMapByParent = {};
 						students.forEach((s: any) => {
-							const pId = s.padre_id || s.padreId;
+							let pId = s.padre_id || s.padreId;
+							// Handle case where padre_id is an object
+							if (pId && typeof pId === 'object') {
+								pId = pId._id || pId.id;
+							}
+
 							if (!pId) return;
-							if (!studentMapByParent[pId]) studentMapByParent[pId] = [];
+							const pIdStr = String(pId);
+
+							if (!studentMapByParent[pIdStr]) studentMapByParent[pIdStr] = [];
 
 							const cId = String(s.curso_id || '');
 							const c = courseMap[cId];
 
-							studentMapByParent[pId].push({
+							const normalizedStudent = {
 								...s,
+								_id: s._id || s.id || '',
 								courseName: c ? c.nombre : s.grado || '',
 								courseLevel: c ? c.nivel : s.nivel || '',
 								courseShift: c ? c.turno : s.turno || '',
 								courseSection: c ? c.paralelo : s.seccion || ''
-							});
+							};
+
+							studentMapByParent[pIdStr].push(normalizedStudent);
 						});
 					} catch (studentErr) {
 						console.warn(
@@ -312,11 +336,11 @@
 		creatingParent = true;
 		try {
 			// Register returns the User object
-			const createdUser = await authService.register(newParent);
+			const createdUser = await padreService.register(newParent);
 
 			alert('Padre registrado exitosamente. Ahora puede agregar sus hijos.');
 			showParentModal = false;
-			newParent = { email: '', username: '', password: '', nombre: '', apellido: '' };
+			newParent = { email: '', password: '', nombre: '', apellido: '' };
 
 			await loadUsers();
 
@@ -343,18 +367,16 @@
 				msg.includes('409')
 			) {
 				alert(
-					`El usuario ya estaba registrado. Abriendo gestión de hijos para: ${newParent.username}`
+					`El usuario ya estaba registrado. Abriendo gestión de hijos para: ${newParent.email}`
 				);
 
 				// Try to find the user in the existing list
-				const existingUser = allUsersRaw.find(
-					(u) => u.username === newParent.username || u.email === newParent.email
-				);
+				const existingUser = allUsersRaw.find((u) => u.email === newParent.email);
 
 				if (existingUser) {
 					// Clean up UI
 					showParentModal = false;
-					newParent = { email: '', username: '', password: '', nombre: '', apellido: '' };
+					newParent = { email: '', password: '', nombre: '', apellido: '' };
 					filterRole = 'Todos';
 					searchTerm = existingUser.username;
 					openChildModal(existingUser);
@@ -362,12 +384,10 @@
 				} else {
 					// Try to reload users then find
 					await loadUsers();
-					const reloadedUser = allUsersRaw.find(
-						(u) => u.username === newParent.username || u.email === newParent.email
-					);
+					const reloadedUser = allUsersRaw.find((u) => u.email === newParent.email);
 					if (reloadedUser) {
 						showParentModal = false;
-						newParent = { email: '', username: '', password: '', nombre: '', apellido: '' };
+						newParent = { email: '', password: '', nombre: '', apellido: '' };
 						filterRole = 'Todos';
 						searchTerm = reloadedUser.username;
 						openChildModal(reloadedUser);
@@ -390,13 +410,74 @@
 		showChildModal = true;
 		parentChildren = []; // Clear previous
 		newChild = { nombre: '', apellido: '', fecha_nacimiento: '', grado: '', curso: '' }; // Reset form
-		await loadParentChildren(parent._id);
+		const pId = parent._id || (parent as any).id;
+		await loadParentChildren(pId);
 	}
 
 	async function loadParentChildren(parentId: string) {
 		loadingChildren = true;
+		if (!parentId) {
+			console.error('❌ Cannot load children: parentId is null or undefined');
+			loadingChildren = false;
+			return;
+		}
+
+		const cleanParentId = String(parentId);
+
 		try {
-			parentChildren = await hijoService.getHijosByPadre(parentId);
+			console.log('🔄 Loading children for parent ID:', cleanParentId);
+			// Get manual hijo records
+			const hRes = (await hijoService.getHijosByPadre(cleanParentId)) as any;
+			const manualHijos = (Array.isArray(hRes) ? hRes : hRes.data || hRes.value || []).map(
+				(h: any) => ({
+					...h,
+					_id: h._id || h.id || ''
+				})
+			);
+
+			// Get students already linked to this parent from backend
+			let linkedStudents: any[] = [];
+			try {
+				const sRes = (await padreService.getLinkedStudents(cleanParentId)) as any;
+				const studentsFromBackend = Array.isArray(sRes) ? sRes : sRes.data || sRes.value || [];
+
+				linkedStudents = studentsFromBackend.map((s: any) => ({
+					_id: s._id || s.id,
+					nombre: s.nombre || s.nombres || '',
+					apellido: s.apellido || s.apellidos || '',
+					grado: s.courseName || s.grado || s.curso?.nombre || '',
+					curso: s.courseSection || s.seccion || s.curso?.paralelo || '',
+					fecha_nacimiento: s.fecha_nacimiento || '',
+					isStudent: true // Flag to distinguish
+				}));
+			} catch (err) {
+				console.warn('⚠️ Direct linked fetch failed, using local map fallback:', err);
+			}
+
+			// Fallback: If linked students are empty or fetch failed, check local map
+			if (linkedStudents.length === 0 && studentMapByParent[cleanParentId]) {
+				console.log('💡 Using local fallback map for parent children');
+				const localMatches = studentMapByParent[cleanParentId];
+				linkedStudents = localMatches.map((s: any) => ({
+					_id: s._id || s.id || '',
+					nombre: s.nombre || s.nombres || '',
+					apellido: s.apellido || s.apellidos || '',
+					grado: s.courseName || s.grado || '',
+					curso: s.courseSection || s.seccion || '',
+					fecha_nacimiento: s.fecha_nacimiento || '',
+					isStudent: true
+				}));
+			}
+
+			// Merge both lists, ensuring unique _id to avoid Svelte errors
+			const childrenMap = new Map();
+			[...manualHijos, ...linkedStudents].forEach((c) => {
+				const cid = c._id || c.id;
+				if (cid) childrenMap.set(String(cid), { ...c, _id: String(cid) });
+			});
+			parentChildren = Array.from(childrenMap.values());
+
+			console.log(`✅ Loaded ${parentChildren.length} total children for parent.`);
 		} catch (e) {
 			console.error('Error loading children:', e);
 		} finally {
@@ -437,12 +518,103 @@
 		}
 	}
 
+	async function openLinkModal() {
+		showLinkModal = true;
+		linkPage = 1;
+		studentSearch = '';
+		await loadStudentsForLink();
+	}
+
+	async function loadStudentsForLink() {
+		if (!selectedParent) return;
+		isLoadingLinkStudents = true;
+		try {
+			const res = (await studentService.getAll({
+				page: linkPage,
+				per_page: linkPerPage,
+				q: studentSearch
+			})) as any;
+
+			if (res && res.data) {
+				allStudentsLink = res.data;
+				linkTotal = res.total || 0;
+			} else if (Array.isArray(res)) {
+				allStudentsLink = res;
+				linkTotal = res.length;
+			}
+		} catch (error) {
+			console.error('Error loading students for link:', error);
+		} finally {
+			isLoadingLinkStudents = false;
+		}
+	}
+
+	function handleLinkSearch() {
+		linkPage = 1;
+		loadStudentsForLink();
+	}
+
+	async function linkStudent(student: any) {
+		if (!selectedParent) return;
+		const pId = selectedParent._id || (selectedParent as any).id;
+		const sId = student._id || student.id;
+
+		if (!pId || !sId) {
+			console.error('❌ Missing IDs for linking:', { pId, sId });
+			return;
+		}
+
+		linkingStudentId = sId;
+		try {
+			// Using the specific assignChild endpoint requested by user
+			await padreService.assignChild(pId, sId);
+
+			// await alert(`Estudiante ${student.nombre || student.nombres} vinculado correctamente`);
+
+			// Close link modal to return to registration panel
+			showLinkModal = false;
+
+			// Update the children list in the current modal immediately
+			await loadParentChildren(pId);
+
+			// Refresh background data (student mapping) asynchronously
+			initData();
+		} catch (error) {
+			console.error('Error linking student:', error);
+			alert(
+				'Error al vincular estudiante: ' +
+					(error instanceof Error ? error.message : 'Error desconocido')
+			);
+		} finally {
+			linkingStudentId = '';
+		}
+	}
+
+	async function unlinkStudent(childId: string) {
+		// Since 'hijo' might be represented differently, if it's a student record we just clear padre_id
+		// but if it's a separate hijo record, we use the deleteHijo
+		if (!confirm('¿Estás seguro de desvincular este estudiante?')) return;
+		try {
+			// This depends on whether hijo is a separate entity or just a student
+			// The current code uses hijoService.deleteHijo
+			await hijoService.deleteHijo(childId);
+			if (selectedParent) {
+				const pId = selectedParent._id || (selectedParent as any).id;
+				await loadParentChildren(pId);
+			}
+		} catch (error) {
+			console.error('Error unlinking:', error);
+			alert('Error al desvincular estudiante');
+		}
+	}
+
 	async function handleDeleteChild(childId: string) {
 		if (!confirm('¿Estás seguro de eliminar este hijo?')) return;
 		try {
 			await hijoService.deleteHijo(childId);
 			if (selectedParent) {
-				await loadParentChildren(selectedParent._id);
+				const pId = selectedParent._id || (selectedParent as any).id;
+				await loadParentChildren(pId);
 			}
 		} catch (e) {
 			console.error(e);
@@ -907,22 +1079,6 @@
 
 				<div>
 					<label
-						for="parent-username"
-						class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1"
-						>Nombre de Usuario</label
-					>
-					<input
-						id="parent-username"
-						type="text"
-						bind:value={newParent.username}
-						required
-						class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-						placeholder="juan.perez"
-					/>
-				</div>
-
-				<div>
-					<label
 						for="parent-email"
 						class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Email</label
 					>
@@ -1006,11 +1162,11 @@
 			</div>
 
 			<div class="flex flex-col md:flex-row h-full overflow-hidden">
-				<!-- Children List (Left Side) -->
+				<!-- Children List -->
 				<div
-					class="w-full md:w-1/2 border-r border-gray-100 dark:border-gray-700 p-6 overflow-y-auto bg-gray-50 dark:bg-gray-900"
+					class="w-full md:w-2/3 border-r border-gray-100 dark:border-gray-700 p-6 overflow-y-auto bg-gray-50 dark:bg-gray-900"
 				>
-					<h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+					<h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2 text-lg">
 						<span class="text-xl">📋</span> Hijos Registrados
 					</h3>
 
@@ -1026,30 +1182,42 @@
 							<p>No hay hijos registrados</p>
 						</div>
 					{:else}
-						<div class="space-y-4">
+						<div class="grid grid-cols-1 gap-4">
 							{#each parentChildren as child (child._id)}
 								<div
 									class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex justify-between items-center group hover:shadow-md transition-shadow"
 								>
 									<div>
-										<h4 class="font-bold text-gray-900 dark:text-white">
-											{child.nombre}
-											{child.apellido}
-										</h4>
+										<div class="flex items-center gap-2">
+											<h4 class="font-bold text-gray-900 dark:text-white">
+												{child.nombre}
+												{child.apellido}
+											</h4>
+											{#if child.isStudent}
+												<span
+													class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase tracking-tighter"
+												>
+													VINCULADO
+												</span>
+											{/if}
+										</div>
 										<p class="text-sm text-gray-500 dark:text-gray-400">
 											{child.grado}
 											{child.curso || ''}
 										</p>
-										<p class="text-xs text-gray-400">
-											Nacimiento: {new Date(child.fecha_nacimiento).toLocaleDateString()}
-										</p>
+										{#if child.fecha_nacimiento}
+											<p class="text-xs text-gray-400">
+												Nacimiento: {new Date(child.fecha_nacimiento).toLocaleDateString()}
+											</p>
+										{/if}
 									</div>
 									<button
-										onclick={() => handleDeleteChild(child._id!)}
+										onclick={() =>
+											child.isStudent ? unlinkStudent(child._id!) : handleDeleteChild(child._id!)}
 										class="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-										title="Eliminar hijo"
+										title={child.isStudent ? 'Desvincular estudiante' : 'Eliminar hijo'}
 									>
-										🗑️
+										{child.isStudent ? '🔗' : '🗑️'}
 									</button>
 								</div>
 							{/each}
@@ -1057,108 +1225,181 @@
 					{/if}
 				</div>
 
-				<!-- Add Child Form (Right Side) -->
-				<div class="w-full md:w-1/2 p-6 overflow-y-auto dark:bg-gray-800">
-					<h3 class="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-						<span class="text-xl">➕</span> Agregar Nuevo Hijo
-					</h3>
-					<form onsubmit={handleAddChild} class="space-y-4">
-						<div class="grid grid-cols-2 gap-4">
-							<div>
-								<label
-									for="child-nombre"
-									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-									>Nombre</label
-								>
-								<input
-									id="child-nombre"
-									type="text"
-									bind:value={newChild.nombre}
-									required
-									class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-									placeholder="Nombre"
-								/>
-							</div>
-							<div>
-								<label
-									for="child-apellido"
-									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-									>Apellido</label
-								>
-								<input
-									id="child-apellido"
-									type="text"
-									bind:value={newChild.apellido}
-									required
-									class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-									placeholder="Apellido"
-								/>
-							</div>
+				<!-- Actions Panel (Right Side) -->
+				<div class="w-full md:w-1/3 p-6 flex flex-col justify-center bg-white dark:bg-gray-800">
+					<div class="text-center mb-8">
+						<div
+							class="w-20 h-20 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center text-4xl mx-auto mb-4"
+						>
+							🎓
 						</div>
+						<h3 class="font-bold text-gray-900 dark:text-white text-xl">Vinculación</h3>
+						<p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+							Conecta cuentas de estudiantes existentes con este padre de familia.
+						</p>
+					</div>
 
-						<div>
-							<label
-								for="child-fecha"
-								class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-								>Fecha de Nacimiento</label
+					<button
+						type="button"
+						onclick={openLinkModal}
+						class="w-full py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl font-bold shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all flex justify-center items-center gap-3 text-lg"
+					>
+						<span class="text-2xl">🔗</span> Vincular Estudiante
+					</button>
+
+					<p class="text-[11px] text-gray-400 text-center mt-6 uppercase tracking-widest font-bold">
+						Sistema de Gestión CertHub
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Link Existing Student Modal -->
+{#if showLinkModal}
+	<div
+		class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-4"
+		transition:fade
+	>
+		<div
+			class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-slide-up"
+		>
+			<div
+				class="p-6 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white flex justify-between items-center"
+			>
+				<div>
+					<h2 class="text-2xl font-bold">Vincular Estudiante</h2>
+					<p class="text-indigo-100 text-sm">
+						Busca y selecciona estudiantes para vincular a {selectedParent?.nombre}
+					</p>
+				</div>
+				<button
+					onclick={() => (showLinkModal = false)}
+					class="p-2 hover:bg-white/20 rounded-full transition-colors"
+				>
+					<span class="text-2xl">✕</span>
+				</button>
+			</div>
+
+			<div class="p-6 border-b border-gray-100 dark:border-gray-700">
+				<div class="relative">
+					<input
+						type="text"
+						bind:value={studentSearch}
+						oninput={handleLinkSearch}
+						placeholder="Buscar por nombre, apellido o RUDE..."
+						class="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-2xl focus:ring-2 focus:ring-indigo-500 transition-all text-gray-900 dark:text-white"
+					/>
+					<span class="absolute left-4 top-1/2 -translate-y-1/2 text-2xl">🔍</span>
+				</div>
+			</div>
+
+			<div class="flex-1 overflow-y-auto p-6">
+				{#if isLoadingLinkStudents}
+					<div class="flex flex-col items-center justify-center py-20">
+						<div
+							class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"
+						></div>
+						<p class="text-gray-500">Buscando estudiantes...</p>
+					</div>
+				{:else if allStudentsLink.length === 0}
+					<div
+						class="text-center py-20 bg-gray-50 dark:bg-gray-900/50 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700"
+					>
+						<span class="text-6xl block mb-4">😕</span>
+						<p class="text-gray-500 font-medium">
+							No se encontraron estudiantes para "{studentSearch}"
+						</p>
+					</div>
+				{:else}
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+						{#each allStudentsLink as student}
+							<div
+								class="bg-white dark:bg-gray-700 p-4 rounded-2xl border border-gray-100 dark:border-gray-600 shadow-sm hover:shadow-md transition-all flex justify-between items-center group"
 							>
-							<input
-								id="child-fecha"
-								type="date"
-								bind:value={newChild.fecha_nacimiento}
-								required
-								class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-							/>
-						</div>
+								<div class="flex items-center gap-4">
+									<div
+										class="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-2xl"
+									>
+										🎓
+									</div>
+									<div>
+										<h4
+											class="font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 transition-colors"
+										>
+											{student.nombres || student.nombre || ''}
+											{student.apellidos || student.apellido || ''}
+										</h4>
+										<p class="text-xs text-gray-500 dark:text-gray-400">
+											{student.grado || student.curso_id || student.grade || 'Sin Grado'}
+											{#if student.paralelo || student.seccion}
+												• Sección {student.paralelo || student.seccion}
+											{/if}
+											{#if student.turno}
+												• {student.turno}
+											{/if}
+										</p>
+										<p class="text-xs text-gray-400 dark:text-gray-500">
+											RUDE: {student.rude || 'Sin RUDE'}
+										</p>
+									</div>
+								</div>
 
-						<div class="grid grid-cols-2 gap-4">
-							<div>
-								<label
-									for="child-grado"
-									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-									>Curso</label
+								<button
+									onclick={() => linkStudent(student)}
+									disabled={linkingStudentId === (student.id || student._id) ||
+										student.padre_id === selectedParent?._id}
+									class="px-4 py-2 rounded-xl font-bold text-sm transition-all
+									{student.padre_id === selectedParent?._id
+										? 'bg-green-100 text-green-700 cursor-default'
+										: 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg transform active:scale-95'}"
 								>
-								<select
-									id="child-grado"
-									bind:value={newChild.grado}
-									required
-									class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-								>
-									<option value="">Seleccionar</option>
-									{#each grados as grado}
-										<option value={grado}>{grado}</option>
-									{/each}
-								</select>
+									{#if linkingStudentId === (student.id || student._id)}
+										<span class="animate-spin inline-block mr-1">⌛</span>
+									{/if}
+									{student.padre_id === selectedParent?._id ? '✓ Vinculado' : '🔗 Vincular'}
+								</button>
 							</div>
-							<div>
-								<label
-									for="child-paralelo"
-									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-									>Paralelo</label
-								>
-								<input
-									id="child-paralelo"
-									type="text"
-									bind:value={newChild.curso}
-									class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-									placeholder="Ej: A"
-								/>
-							</div>
-						</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
 
-						<div class="pt-4">
-							<button
-								type="submit"
-								disabled={addingChild}
-								class="w-full py-2 bg-gradient-to-r from-indigo-600 to-cyan-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex justify-center items-center gap-2"
-							>
-								{#if addingChild}
-									<span class="animate-spin">⌛</span>
-								{/if}
-								{addingChild ? 'Agregando...' : 'Agregar Hijo'}
-							</button>
-						</div>
-					</form>
+			<div
+				class="p-6 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 flex flex-col md:flex-row justify-between items-center gap-4"
+			>
+				<div class="text-sm text-gray-500">
+					Mostrando <span class="font-bold text-gray-900 dark:text-white"
+						>{allStudentsLink.length}</span
+					>
+					de <span class="font-bold text-gray-900 dark:text-white">{linkTotal}</span> estudiantes
+				</div>
+
+				<div class="flex items-center gap-2">
+					<button
+						disabled={linkPage <= 1}
+						onclick={() => {
+							linkPage--;
+							loadStudentsForLink();
+						}}
+						class="px-4 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+					>
+						Anterior
+					</button>
+					<div class="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold">
+						{linkPage} / {linkTotalPages || 1}
+					</div>
+					<button
+						disabled={linkPage >= linkTotalPages}
+						onclick={() => {
+							linkPage++;
+							loadStudentsForLink();
+						}}
+						class="px-4 py-2 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+					>
+						Siguiente
+					</button>
 				</div>
 			</div>
 		</div>

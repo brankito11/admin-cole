@@ -61,6 +61,30 @@ class LicenciaService {
 			throw error;
 		}
 	}
+
+	/**
+	 * Actualizar una licencia
+	 */
+	async updateLicencia(id: string | number, data: any): Promise<Licencia> {
+		try {
+			return await apiCole.put<Licencia>(`/licencias/${id}`, data);
+		} catch (error) {
+			console.error('Error al actualizar licencia:', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Eliminar una licencia
+	 */
+	async deleteLicencia(id: string | number): Promise<void> {
+		try {
+			await apiCole.delete(`/licencias/${id}`);
+		} catch (error) {
+			console.error('Error al eliminar licencia:', error);
+			throw error;
+		}
+	}
 }
 
 export const licenciaService = new LicenciaService();

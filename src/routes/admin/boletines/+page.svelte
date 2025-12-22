@@ -5,35 +5,45 @@
 	import Pagination from '$lib/components/pagination.svelte';
 	import CourseFilter from '$lib/components/CourseFilter.svelte';
 
-	let showModal = false;
-	let editingBoletin: any = null;
-	let courses: any[] = [];
-	let courseMap: any = {};
-	let loading = false;
-	let isLoadingData = true;
+	let showModal = $state(false);
+	let editingBoletin: any = $state(null);
+	let courses: any[] = $state([]);
+	let courseMap: any = $state({});
+	let loading = $state(false);
+	let isLoadingData = $state(true);
 
 	// Pagination
-	let page = 1;
-	let perPage = 10;
-	let total = 0;
-	let totalPages = 0;
+	let page = $state(1);
+	let perPage = $state(10);
+	let total = $state(0);
+	let totalPages = $state(0);
 
-	let searchTerm = '';
-	let filterGrade = 'Todos';
-	let filterStatus = 'Todos';
-	let filterDate = '';
+	let searchTerm = $state('');
+	let filterGrade = $state('Todos');
+	let filterStatus = $state('Todos');
+	let filterDate = $state('');
 
 	// Level, Grade, Shift, Section Interaction
-	let selectedLevel = '';
-	let selectedGrade = '';
-	let selectedShift = '';
-	let selectedSection = '';
+	let selectedLevel = $state('');
+	let selectedGrade = $state('');
+	let selectedShift = $state('');
+	let selectedSection = $state('');
+
+	// Form State
+	let formData = $state({
+		student: '',
+		grade: '',
+		section: '',
+		period: '1er Trimestre',
+		average: 0,
+		status: 'Borrador'
+	});
 
 	// Dynamic Filter Data
-	let levels: Record<string, string[]> = {};
+	let levels: Record<string, string[]> = $state({});
 
-	$: availableShifts = getAvailableShifts(selectedGrade);
-	$: availableSections = getAvailableSections(selectedGrade, selectedShift);
+	let availableShifts = $derived(getAvailableShifts(selectedGrade));
+	let availableSections = $derived(getAvailableSections(selectedGrade, selectedShift));
 
 	function getAvailableShifts(grade: string) {
 		if (!grade) return [];
@@ -50,7 +60,7 @@
 		return [...new Set(relevantCourses.map((c) => c.paralelo))].sort();
 	}
 
-	let allBoletines: any[] = [];
+	let allBoletines: any[] = $state([]);
 
 	onMount(() => {
 		initData();
@@ -227,12 +237,49 @@
 
 	function handleCreate() {
 		editingBoletin = null;
+		formData = {
+			student: '',
+			grade: '',
+			section: '',
+			period: '1er Trimestre',
+			average: 0,
+			status: 'Borrador'
+		};
 		showModal = true;
 	}
 
 	function handleEdit(boletin: any) {
 		editingBoletin = boletin;
+		formData = {
+			student: boletin.student,
+			grade: boletin.grade,
+			section: boletin.section,
+			period: boletin.period,
+			average: boletin.average,
+			status: boletin.status
+		};
 		showModal = true;
+	}
+
+	async function handleSubmit(e: Event) {
+		if (e) e.preventDefault();
+		loading = true;
+		try {
+			if (editingBoletin) {
+				await libretaService.update(editingBoletin.id, formData);
+				alert('Boletín actualizado correctamente');
+			} else {
+				await libretaService.create(formData);
+				alert('Boletín creado correctamente');
+			}
+			showModal = false;
+			await loadBoletines();
+		} catch (error: any) {
+			console.error('Error saving boletin:', error);
+			alert(`Error al guardar: ${error.message || 'Error desconocido'}`);
+		} finally {
+			loading = false;
+		}
 	}
 
 	async function handleDelete(id: number) {
@@ -248,10 +295,11 @@
 		}
 	}
 
-	$: avgGeneral =
+	let avgGeneral = $derived(
 		allBoletines.length > 0
 			? allBoletines.reduce((sum, b) => sum + (b.average || 0), 0) / allBoletines.length
-			: 0;
+			: 0
+	);
 </script>
 
 <div class="space-y-6 animate-fade-in">
@@ -598,6 +646,126 @@
 		{/if}
 	</div>
 </div>
+
+{#if showModal}
+	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up"
+		>
+			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+				{editingBoletin ? 'Editar Boletín' : 'Registrar Nuevo Boletín'}
+			</h2>
+			<form onsubmit={handleSubmit} class="space-y-4">
+				<div class="grid grid-cols-2 gap-4">
+					<div class="col-span-2">
+						<label
+							for="student"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Estudiante</label
+						>
+						<input
+							id="student"
+							type="text"
+							bind:value={formData.student}
+							required
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+						/>
+					</div>
+					<div>
+						<label
+							for="grade"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Grado</label
+						>
+						<input
+							id="grade"
+							type="text"
+							bind:value={formData.grade}
+							required
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+						/>
+					</div>
+					<div>
+						<label
+							for="section"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Sección</label
+						>
+						<input
+							id="section"
+							type="text"
+							bind:value={formData.section}
+							required
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+						/>
+					</div>
+					<div>
+						<label
+							for="period"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Período</label
+						>
+						<select
+							id="period"
+							bind:value={formData.period}
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+						>
+							<option>1er Trimestre</option>
+							<option>2do Trimestre</option>
+							<option>3er Trimestre</option>
+							<option>Final</option>
+						</select>
+					</div>
+					<div>
+						<label
+							for="average"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Promedio</label
+						>
+						<input
+							id="average"
+							type="number"
+							step="0.1"
+							bind:value={formData.average}
+							required
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+						/>
+					</div>
+					<div>
+						<label
+							for="status"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Estado</label
+						>
+						<select
+							id="status"
+							bind:value={formData.status}
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+						>
+							<option>Publicado</option>
+							<option>Borrador</option>
+						</select>
+					</div>
+				</div>
+				<div class="flex justify-end gap-4 mt-6">
+					<button
+						type="button"
+						onclick={() => (showModal = false)}
+						class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold transition-colors"
+					>
+						Cancelar
+					</button>
+					<button
+						type="submit"
+						disabled={loading}
+						class="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+					>
+						{loading ? 'Guardando...' : editingBoletin ? 'Actualizar' : 'Guardar'}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.animate-fade-in {

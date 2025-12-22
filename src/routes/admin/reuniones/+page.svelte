@@ -140,11 +140,15 @@
 		modalMode = 'edit';
 		selectedReunion = reunion;
 		formData = {
-			nombre_reunion: reunion.nombre_reunion,
-			tema: reunion.tema,
-			fecha: reunion.fecha.split('T')[0], // Extract date only
-			hora_inicio: reunion.hora_inicio,
-			hora_conclusion: reunion.hora_conclusion
+			nombre_reunion: reunion.titulo,
+			tema: reunion.descripcion,
+			fecha: reunion.fecha_hora.split('T')[0], // Extract date only
+			hora_inicio: new Date(reunion.fecha_hora).toLocaleTimeString('es-ES', {
+				hour: '2d',
+				minute: '2d',
+				hour12: false
+			}),
+			hora_conclusion: '' // No separate field in backend now
 		};
 		showModal = true;
 	}
@@ -158,22 +162,65 @@
 		loading = true;
 		error = '';
 		try {
-			// Prepare data with ISO format for fecha
+			// Preparar fecha de forma robusta
+			let isoFecha;
+			try {
+				if (!formData.fecha) throw new Error('Debe seleccionar una fecha');
+
+				// Combinar fecha y hora para fecha_hora
+				const time = formData.hora_inicio || '00:00';
+				const [year, month, day] = formData.fecha.split('-');
+				const [hours, minutes] = time.split(':');
+
+				isoFecha = new Date(
+					Date.UTC(
+						parseInt(year),
+						parseInt(month) - 1,
+						parseInt(day),
+						parseInt(hours),
+						parseInt(minutes)
+					)
+				).toISOString();
+			} catch (dErr) {
+				console.error('Error al procesar fecha:', dErr);
+				error = 'La fecha u hora seleccionada no es válida.';
+				loading = false;
+				return;
+			}
+
+			// Alinear con el backend: titulo, descripcion, fecha_hora
 			const dataToSend = {
-				...formData,
-				fecha: new Date(formData.fecha).toISOString()
+				titulo: formData.nombre_reunion,
+				descripcion: formData.tema,
+				fecha_hora: isoFecha
 			};
 
+			console.log('📤 Enviando datos de reunión:', dataToSend);
+
 			if (modalMode === 'create') {
-				await reunionService.createReunion(dataToSend as ReunionCreate);
+				await reunionService.createReunion(dataToSend as any);
 			} else if (selectedReunion) {
-				await reunionService.updateReunion(selectedReunion._id, dataToSend as ReunionUpdate);
+				await reunionService.updateReunion(selectedReunion._id, dataToSend as any);
 			}
+
+			// Solo cerrar modal si no hay error
 			closeModal();
 			await loadReuniones();
 		} catch (err: any) {
-			console.error('Submit error', err);
-			error = err.message || 'Error al guardar reunión';
+			console.error('❌ Error al guardar reunión:', err);
+
+			// Si el error es de tipo TypeError, suele ser un problema de red real (CORS o servidor caído)
+			// Pero si el backend está bien, revisamos el endpoint
+			if (err.message?.includes('timeout') || err.message?.includes('408')) {
+				error =
+					'Error de tiempo: El servidor tardó demasiado en responder (Cold Start). Intenta de nuevo en unos segundos.';
+			} else if (err.status === 404) {
+				error = 'Error 404: El endpoint de eventos no se encontró. Reportando al administrador...';
+			} else {
+				error =
+					err.message ||
+					'Error de conexión: No se puede conectar con el servidor. Verifica tu internet o el estado del sistema.';
+			}
 		} finally {
 			loading = false;
 		}
@@ -207,7 +254,7 @@
 
 	const programadas = $derived(
 		reuniones.filter((r) => {
-			const reunionDate = new Date(r.fecha);
+			const reunionDate = new Date(r.fecha_hora);
 			const today = new Date();
 			today.setHours(0, 0, 0, 0);
 			reunionDate.setHours(0, 0, 0, 0);
@@ -217,7 +264,7 @@
 
 	const completadas = $derived(
 		reuniones.filter((r) => {
-			const reunionDate = new Date(r.fecha);
+			const reunionDate = new Date(r.fecha_hora);
 			const today = new Date();
 			today.setHours(0, 0, 0, 0);
 			reunionDate.setHours(0, 0, 0, 0);
@@ -226,7 +273,7 @@
 	);
 
 	function getStatusForReunion(reunion: Reunion): string {
-		const reunionDate = new Date(reunion.fecha);
+		const reunionDate = new Date(reunion.fecha_hora);
 		const today = new Date();
 		today.setHours(0, 0, 0, 0);
 		reunionDate.setHours(0, 0, 0, 0);
@@ -415,7 +462,7 @@
 							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
 								<td class="px-6 py-4">
 									<div class="text-sm font-semibold text-gray-900 dark:text-white">
-										{reunion.nombre_reunion}
+										{reunion.titulo}
 									</div>
 									<div class="text-xs text-gray-500 dark:text-gray-400">
 										ID: {reunion._id.slice(-8)}
@@ -425,15 +472,18 @@
 									<span
 										class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border bg-indigo-100 text-indigo-700 border-indigo-200"
 									>
-										{reunion.tema}
+										{reunion.descripcion}
 									</span>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<div class="text-sm text-gray-900 dark:text-white">
-										{new Date(reunion.fecha).toLocaleDateString('es-ES')}
+										{new Date(reunion.fecha_hora).toLocaleDateString('es-ES')}
 									</div>
 									<div class="text-xs text-gray-500 dark:text-gray-400">
-										{reunion.hora_inicio} - {reunion.hora_conclusion}
+										{new Date(reunion.fecha_hora).toLocaleTimeString('es-ES', {
+											hour: '2d',
+											minute: '2d'
+										})}
 									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
@@ -449,17 +499,17 @@
 									<div class="flex items-center gap-2">
 										<button
 											onclick={() => openEditModal(reunion)}
-											class="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg hover:bg-blue-200 transition-colors font-medium"
+											class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
 											title="Editar"
 										>
-											✏️ Editar
+											✏️
 										</button>
 										<button
 											onclick={() => confirmDelete(reunion)}
-											class="bg-red-100 text-red-700 px-3 py-1 rounded-lg hover:bg-red-200 transition-colors font-medium"
+											class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
 											title="Eliminar"
 										>
-											🗑️ Eliminar
+											🗑️
 										</button>
 									</div>
 								</td>
@@ -506,6 +556,20 @@
 			<h2 class="text-2xl font-bold text-gray-900 mb-6">
 				{modalMode === 'create' ? '➕ Programar Nuevo Evento' : '✏️ Editar Evento'}
 			</h2>
+
+			<!-- Error Message in Modal -->
+			{#if error}
+				<div
+					class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg mb-4 animate-shake"
+					role="alert"
+				>
+					<div class="flex items-start">
+						<span class="text-2xl mr-3">⚠️</span>
+						<p class="text-red-700 font-medium">{error}</p>
+					</div>
+				</div>
+			{/if}
+
 			<form
 				onsubmit={(e) => {
 					e.preventDefault();
@@ -515,23 +579,27 @@
 			>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="col-span-2">
-						<label for="nombre_reunion" class="block text-sm font-semibold text-gray-700 mb-2">
+						<label for="titulo" class="block text-sm font-semibold text-gray-700 mb-2">
 							Título de la Reunión
 						</label>
 						<input
 							type="text"
-							id="nombre_reunion"
+							id="titulo"
 							bind:value={formData.nombre_reunion}
+							placeholder="Ej: Entrega de Boletines"
 							required
 							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 						/>
 					</div>
 					<div class="col-span-2">
-						<label for="tema" class="block text-sm font-semibold text-gray-700 mb-2">Tema</label>
+						<label for="descripcion" class="block text-sm font-semibold text-gray-700 mb-2"
+							>Descripción / Tema</label
+						>
 						<input
 							type="text"
-							id="tema"
+							id="descripcion"
 							bind:value={formData.tema}
+							placeholder="Ej: Revisión de tercer bimestre"
 							required
 							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 						/>

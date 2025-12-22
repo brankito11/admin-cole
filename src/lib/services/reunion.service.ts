@@ -6,7 +6,7 @@ class ReunionService {
 	async createReunion(data: ReunionCreate): Promise<Reunion> {
 		try {
 			console.log('📅 Create Reunion request');
-			const result = await apiCole.post<Reunion>('/reuniones/', data);
+			const result = await apiCole.post<Reunion>('/eventos', data);
 			console.log('✅ Reunión creada exitosamente');
 			return result;
 		} catch (error) {
@@ -40,7 +40,7 @@ class ReunionService {
 			});
 
 			console.log('📋 Get All Reuniones request');
-			const result = await apiCole.get<GetReunionesResponse>(`/reuniones/?${params.toString()}`);
+			const result = await apiCole.get<GetReunionesResponse>(`/eventos?${params.toString()}`);
 			console.log('✅ Reuniones obtenidas');
 			return result;
 		} catch (error) {
@@ -53,7 +53,7 @@ class ReunionService {
 	async getReunionById(reunionId: string): Promise<Reunion> {
 		try {
 			console.log('🔍 Get Reunion by ID request:', reunionId);
-			const result = await apiCole.get<Reunion>(`/reuniones/${reunionId}`);
+			const result = await apiCole.get<Reunion>(`/eventos/${reunionId}`);
 			console.log('✅ Reunión obtenida');
 			return result;
 		} catch (error) {
@@ -66,7 +66,7 @@ class ReunionService {
 	async updateReunion(reunionId: string, data: ReunionUpdate): Promise<Reunion> {
 		try {
 			console.log('✏️ Update Reunion request:', reunionId);
-			const result = await apiCole.put<Reunion>(`/reuniones/${reunionId}`, data);
+			const result = await apiCole.put<Reunion>(`/eventos/${reunionId}`, data);
 			console.log('✅ Reunión actualizada exitosamente');
 			return result;
 		} catch (error) {
@@ -79,7 +79,7 @@ class ReunionService {
 	async deleteReunion(reunionId: string): Promise<void> {
 		try {
 			console.log('🗑️ Delete Reunion request:', reunionId);
-			await apiCole.delete(`/reuniones/${reunionId}`);
+			await apiCole.delete(`/eventos/${reunionId}`);
 			console.log('✅ Reunión eliminada exitosamente');
 		} catch (error) {
 			console.error('💥 Delete Reunion exception:', error);
