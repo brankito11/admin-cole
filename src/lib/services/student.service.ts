@@ -74,6 +74,19 @@ class StudentService {
 		formData.append('file', file);
 		return await apiCole.post('/estudiantes/bulk-delete', formData);
 	}
+
+	// Get children linked to a parent (for admins)
+	async getChildrenByParent(padreId: string): Promise<any[]> {
+		try {
+			console.log('📚 Fetching children for parent:', padreId);
+			const response = await apiCole.get<any>(`/estudiantes/mis-hijos?padre_id=${padreId}`);
+			console.log('✅ Children response:', response);
+			return Array.isArray(response) ? response : response.data || [];
+		} catch (error) {
+			console.error('❌ Error fetching children:', error);
+			return [];
+		}
+	}
 }
 
 export const studentService = new StudentService();

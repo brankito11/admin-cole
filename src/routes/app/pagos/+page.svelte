@@ -1,22 +1,34 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { hijoService } from '$lib/services';
+	import { page } from '$app/stores';
+	import { auth } from '$lib/stores/auth';
+	import { studentService } from '$lib/services/student.service';
 	import type { Hijo } from '$lib/interfaces';
 
-	let hijos: Hijo[] = [];
-	let loading = true;
+	let hijos: any[] = $state([]);
+	let selectedHijo: any = $state(null);
+	let loading = $state(true);
 
-	// Mock data - in real app would come from API
-	const payments: any[] = [];
+	const studentIdFromUrl = $derived($page.url.searchParams.get('student_id'));
 
 	onMount(async () => {
-		try {
-			loading = true;
-			hijos = await hijoService.getHijos();
-		} catch (error) {
-			console.error('Error loading hijos:', error);
-		} finally {
-			loading = false;
+		if ($auth?._id) {
+			try {
+				loading = true;
+				hijos = await studentService.getChildrenByParent($auth._id);
+
+				if (hijos.length > 0) {
+					if (studentIdFromUrl) {
+						selectedHijo = hijos.find((h) => (h._id || h.id) === studentIdFromUrl) || hijos[0];
+					} else {
+						selectedHijo = hijos[0];
+					}
+				}
+			} catch (error) {
+				console.error('Error loading hijos for pagos:', error);
+			} finally {
+				loading = false;
+			}
 		}
 	});
 
@@ -25,13 +37,6 @@
 		if (status === 'Pendiente') return 'bg-yellow-100 text-yellow-800 border-yellow-200';
 		return 'bg-red-100 text-red-800 border-red-200';
 	}
-
-	const totalPaid = payments
-		.filter((p) => p.status === 'Pagado')
-		.reduce((sum, p) => sum + p.amount, 0);
-	const totalPending = payments
-		.filter((p) => p.status === 'Pendiente')
-		.reduce((sum, p) => sum + p.amount, 0);
 </script>
 
 <div class="space-y-6 animate-fade-in">
@@ -46,11 +51,16 @@
 		</div>
 	{:else if hijos.length === 0}
 		<!-- No children registered message -->
-		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center"
+		>
 			<div class="text-6xl mb-4">👨‍👩‍👧‍👦</div>
-			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">No tienes hijos registrados</h3>
+			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">
+				No tienes hijos registrados
+			</h3>
 			<p class="text-gray-600 dark:text-gray-400 mb-6">
-				Debes registrar al menos un hijo en la sección de Configuración para poder ver su historial de pagos.
+				Debes registrar al menos un hijo en la sección de Configuración para poder ver su historial
+				de pagos.
 			</p>
 			<a
 				href="/app/configuracion"
@@ -60,13 +70,24 @@
 			</a>
 		</div>
 	{:else}
-		<!-- Message: No payments available yet -->
-		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center"
+		>
 			<div class="text-6xl mb-4">💳</div>
-			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Historial de pagos no disponible</h3>
-			<p class="text-gray-600 dark:text-gray-400">
-				El historial de pagos de tus hijos estará disponible próximamente.
-			</p>
+			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">
+				Historial de pagos no disponible
+			</h3>
+			{#if selectedHijo}
+				<p class="text-gray-600 dark:text-gray-400">
+					El historial de pagos de <span class="font-bold text-indigo-600"
+						>{selectedHijo.nombre || selectedHijo.nombres}</span
+					> estará disponible próximamente.
+				</p>
+			{:else}
+				<p class="text-gray-600 dark:text-gray-400">
+					El historial de pagos de tus hijos estará disponible próximamente.
+				</p>
+			{/if}
 		</div>
 	{/if}
 </div>

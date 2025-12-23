@@ -250,67 +250,79 @@
 	async function initData() {
 		isLoadingData = true;
 		try {
-			// 1. Load Courses first as it's needed for students mapping
-			const cRes = (await cursoService.getAll(0, 1000)) as any;
-			courses = Array.isArray(cRes) ? cRes : cRes.value || cRes.data || [];
+			// 1. Load basic users first as it's the primary data
+			await loadUsers();
 
-			const updatedLevels: Record<string, Set<string>> = {};
-			courses.forEach((c) => {
-				const id = String(c._id || c.id || '');
-				courseMap[id] = c;
-				const niv = c.nivel || 'Sin Asignar';
-				if (!updatedLevels[niv]) updatedLevels[niv] = new Set();
-				updatedLevels[niv].add(c.nombre);
-			});
+			// 2. Load Courses in a resilient way
+			try {
+				const cRes = (await cursoService.getAll(0, 1000)) as any;
+				courses = Array.isArray(cRes) ? cRes : cRes.value || cRes.data || [];
 
-			levels = {};
-			Object.keys(updatedLevels).forEach((k) => {
-				levels[k] = Array.from(updatedLevels[k]).sort();
-			});
+				const updatedLevels: Record<string, Set<string>> = {};
+				courses.forEach((c) => {
+					const id = String(c._id || c.id || '');
+					courseMap[id] = c;
+					const niv = c.nivel || 'Sin Asignar';
+					if (!updatedLevels[niv]) updatedLevels[niv] = new Set();
+					updatedLevels[niv].add(c.nombre);
+				});
 
-			// 2 & 3. Load students mapping and users in parallel to avoid bottlenecks
-			console.log('🔄 Loading students and users in parallel...');
-			await Promise.all([
-				loadUsers(),
-				(async () => {
-					try {
-						const sRes = (await studentService.getAll({ page: 1, per_page: 100 })) as any;
-						const students = Array.isArray(sRes) ? sRes : sRes.data || [];
-						studentMapByParent = {};
-						students.forEach((s: any) => {
-							let pId = s.padre_id || s.padreId;
-							// Handle case where padre_id is an object
-							if (pId && typeof pId === 'object') {
-								pId = pId._id || pId.id;
-							}
+				levels = {};
+				Object.keys(updatedLevels).forEach((k) => {
+					levels[k] = Array.from(updatedLevels[k]).sort();
+				});
+			} catch (courseErr) {
+				console.warn('⚠️ Courses failed to load, student mapping will be partial:', courseErr);
+			}
 
-							if (!pId) return;
-							const pIdStr = String(pId);
+			// 3. Load students mapping asynchronously
+			(async () => {
+				try {
+					console.log('🔄 Fetching students for mapping...');
+					const sRes = (await studentService.getAll({ page: 1, per_page: 1000 })) as any;
+					const students = Array.isArray(sRes) ? sRes : sRes.data || [];
+					studentMapByParent = {};
+					students.forEach((s: any) => {
+						let pId = s.padre_id || s.padreId;
+						// Handle case where padre_id is an object
+						if (pId && typeof pId === 'object') {
+							pId = pId._id || pId.id;
+						}
 
-							if (!studentMapByParent[pIdStr]) studentMapByParent[pIdStr] = [];
+						if (!pId) return;
+						const pIdStr = String(pId);
 
-							const cId = String(s.curso_id || '');
-							const c = courseMap[cId];
+						if (!studentMapByParent[pIdStr]) studentMapByParent[pIdStr] = [];
 
-							const normalizedStudent = {
-								...s,
-								_id: s._id || s.id || '',
-								courseName: c ? c.nombre : s.grado || '',
-								courseLevel: c ? c.nivel : s.nivel || '',
-								courseShift: c ? c.turno : s.turno || '',
-								courseSection: c ? c.paralelo : s.seccion || ''
-							};
+						const cId = String(s.curso_id || '');
+						const c = courseMap[cId];
 
-							studentMapByParent[pIdStr].push(normalizedStudent);
-						});
-					} catch (studentErr) {
-						console.warn(
-							'⚠️ Error loading student mapping, users list should still work:',
-							studentErr
-						);
-					}
-				})()
-			]);
+						const normalizedStudent = {
+							...s,
+							_id: s._id || s.id || '',
+							nombre: s.nombre || s.nombres || '',
+							apellido: s.apellido || s.apellidos || '',
+							grado: c ? c.nombre : s.grado || '',
+							curso: c ? c.paralelo : s.seccion || '',
+							courseName: c ? c.nombre : s.grado || '',
+							courseLevel: c ? c.nivel : s.nivel || '',
+							courseShift: c ? c.turno : s.turno || '',
+							courseSection: c ? c.paralelo : s.seccion || '',
+							isStudent: true
+						};
+
+						studentMapByParent[pIdStr].push(normalizedStudent);
+					});
+					console.log(
+						`✅ Student mapping complete: ${Object.keys(studentMapByParent).length} parents mapped`
+					);
+				} catch (studentErr) {
+					console.warn(
+						'⚠️ Error loading student mapping, users list should still work:',
+						studentErr
+					);
+				}
+			})();
 		} catch (e) {
 			console.error('Error initializing user data:', e);
 		} finally {
@@ -418,56 +430,62 @@
 	async function loadParentChildren(parentId: string) {
 		loadingChildren = true;
 		if (!parentId) {
-			console.error('❌ Cannot load children: parentId is null or undefined');
+			console.log('⚠️ Cannot load children: parentId is null');
 			loadingChildren = false;
 			return;
 		}
 
-		const cleanParentId = String(parentId);
-		console.log('👶 Loading children for parent:', cleanParentId);
+		console.log('👶 Loading children for parent:', parentId);
 
 		try {
-			// Get manual hijo records (if endpoint exists)
-			const hRes = (await hijoService.getHijosByPadre(cleanParentId)) as any;
-			const manualHijos = (Array.isArray(hRes) ? hRes : hRes.data || hRes.value || []).map(
-				(h: any) => ({
-					...h,
-					_id: h._id || h.id || ''
-				})
-			);
-			console.log(`📝 Manual hijos found: ${manualHijos.length}`);
-
-			// Get linked students from local map (already loaded in initData)
-			let linkedStudents: any[] = [];
-			if (studentMapByParent[cleanParentId]) {
-				console.log('💡 Using local student map for parent children');
-				const localMatches = studentMapByParent[cleanParentId];
-				linkedStudents = localMatches.map((s: any) => ({
-					_id: s._id || s.id || '',
-					nombre: s.nombre || s.nombres || '',
-					apellido: s.apellido || s.apellidos || '',
-					grado: s.courseName || s.grado || '',
-					curso: s.courseSection || s.seccion || '',
-					fecha_nacimiento: s.fecha_nacimiento || '',
-					isStudent: true
-				}));
-				console.log(`✅ Found ${linkedStudents.length} linked students from local map`);
-			} else {
-				console.log('ℹ️ No students found in local map for this parent');
+			// 1. Get from backend API
+			let childrenFromApi: any[] = [];
+			try {
+				childrenFromApi = await studentService.getChildrenByParent(parentId);
+				console.log(`✅ Loaded ${childrenFromApi.length} children from backend`);
+			} catch (apiErr) {
+				console.warn('⚠️ API fetch failed, falling back to local map:', apiErr);
 			}
 
-			// Merge both lists, ensuring unique _id to avoid Svelte errors
-			const childrenMap = new Map();
-			[...manualHijos, ...linkedStudents].forEach((c) => {
-				const cid = c._id || c.id;
-				if (cid) childrenMap.set(String(cid), { ...c, _id: String(cid) });
-			});
-			parentChildren = Array.from(childrenMap.values());
+			// 2. Map API results
+			const mappedApiChildren = childrenFromApi.map((child: any) => {
+				const cId = String(child.curso_id || '');
+				const c = courseMap[cId];
 
-			console.log(`📋 Final parentChildren:`, $state.snapshot(parentChildren));
-			console.log(`✅ Total children loaded: ${parentChildren.length}`);
+				return {
+					...child,
+					_id: child._id || child.id || '',
+					nombre: child.nombre || child.nombres || '',
+					apellido: child.apellido || child.apellidos || '',
+					grado: c ? c.nombre : child.grado || '',
+					curso: c ? c.paralelo : child.seccion || '',
+					isStudent: true
+				};
+			});
+
+			// 3. Get from local mapping (especially useful right after linking)
+			const localMatches = studentMapByParent[parentId] || [];
+			console.log(`💡 Local map has ${localMatches.length} students for this parent`);
+
+			// 4. Merge lists by ID to avoid duplicates
+			const uniqueChildren = new Map();
+
+			// Local matches first (might have fresher data for newly linked)
+			localMatches.forEach((child) => {
+				const id = String(child._id || child.id || '');
+				if (id) uniqueChildren.set(id, { ...child, _id: id });
+			});
+
+			// API results override/complement
+			mappedApiChildren.forEach((child) => {
+				uniqueChildren.set(child._id, child);
+			});
+
+			parentChildren = Array.from(uniqueChildren.values());
+			console.log(`📋 Final parentChildren list:`, $state.snapshot(parentChildren));
 		} catch (e) {
-			console.error('💥 Error loading children:', e);
+			console.error('💥 Error merged loading children:', e);
+			parentChildren = [];
 		} finally {
 			loadingChildren = false;
 		}
@@ -557,7 +575,29 @@
 			// Using the specific assignChild endpoint requested by user
 			await padreService.assignChild(pId, sId);
 
-			// await alert(`Estudiante ${student.nombre || student.nombres} vinculado correctamente`);
+			console.log(`✅ Student ${sId} linked to parent ${pId}`);
+
+			// Update the local mapping immediately for instant feedback
+			if (!studentMapByParent[pId]) studentMapByParent[pId] = [];
+
+			// Check if already in local map to avoid duplicates
+			const alreadyLinked = studentMapByParent[pId].some((s) => (s._id || s.id) === sId);
+			if (!alreadyLinked) {
+				const cId = String(student.curso_id || '');
+				const c = courseMap[cId];
+
+				studentMapByParent[pId].push({
+					...student,
+					_id: sId,
+					nombre: student.nombre || student.nombres || '',
+					apellido: student.apellido || student.apellidos || '',
+					grado: c ? c.nombre : student.grado || '',
+					curso: c ? c.paralelo : student.seccion || '',
+					courseName: c ? c.nombre : student.grado || '',
+					courseSection: c ? c.paralelo : student.seccion || '',
+					isStudent: true
+				});
+			}
 
 			// Close link modal to return to registration panel
 			showLinkModal = false;
@@ -565,7 +605,7 @@
 			// Update the children list in the current modal immediately
 			await loadParentChildren(pId);
 
-			// Refresh background data (student mapping) asynchronously
+			// Refresh background data (student mapping) asynchronously to persist changes
 			initData();
 		} catch (error) {
 			console.error('Error linking student:', error);
@@ -793,7 +833,9 @@
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg border border-white/10">
+		<div
+			class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg border border-white/10"
+		>
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#D8E0C7] text-sm font-medium">Resultados</p>
@@ -803,19 +845,23 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-[#5A6840] to-[#6E7D4E] rounded-2xl p-6 text-white shadow-lg border border-white/10">
+		<div
+			class="bg-gradient-to-br from-[#5A6840] to-[#6E7D4E] rounded-2xl p-6 text-white shadow-lg border border-white/10"
+		>
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#D8E0C7] text-sm font-medium">Rol Actual</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Administradores</p>
 					<p class="text-3xl font-bold mt-2">
-						{filterRole}
+						{allUsersRaw.filter((u) => u.role?.toUpperCase() === 'ADMIN').length}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">🛡️</div>
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg border border-white/10">
+		<div
+			class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg border border-white/10"
+		>
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-[#F0E6D2] text-sm font-medium">Búsqueda</p>
@@ -874,7 +920,7 @@
 										<div
 											class="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-300 font-bold text-lg"
 										>
-											{(user.role === 'ADMIN' ? user.username : user.email || '?')
+											{((user.role === 'ADMIN' ? user.username : user.email) || '?')
 												.charAt(0)
 												.toUpperCase()}
 										</div>
@@ -1133,8 +1179,8 @@
 					<div>
 						<h2 class="text-2xl font-bold">Gestionar Hijos</h2>
 						<p class="text-indigo-100">
-							Padre: {selectedParent.username} ({selectedParent.nombre}
-							{selectedParent.apellido})
+							Padre: {selectedParent.username} ({selectedParent.nombre || ''}
+							{selectedParent.apellido || ''})
 						</p>
 					</div>
 					<button
@@ -1175,8 +1221,8 @@
 									<div>
 										<div class="flex items-center gap-2">
 											<h4 class="font-bold text-gray-900 dark:text-white">
-												{child.nombre}
-												{child.apellido}
+												{child.nombre || child.nombres || ''}
+												{child.apellido || child.apellidos || ''}
 											</h4>
 											{#if child.isStudent}
 												<span
@@ -1199,15 +1245,25 @@
 									<button
 										onclick={() =>
 											child.isStudent ? unlinkStudent(child._id!) : handleDeleteChild(child._id!)}
-										class="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+										class="flex items-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-xl transition-all border border-red-100 dark:border-red-800 text-xs font-bold shadow-sm active:scale-95"
 										title={child.isStudent ? 'Desvincular estudiante' : 'Eliminar hijo'}
 									>
-										{child.isStudent ? '🔗' : '🗑️'}
+										<span>{child.isStudent ? '🔗' : '🗑️'}</span>
+										{child.isStudent ? 'Desvincular' : 'Eliminar'}
 									</button>
 								</div>
 							{/each}
 						</div>
 					{/if}
+
+					<div class="mt-8 pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+						<button
+							onclick={() => (showChildModal = false)}
+							class="px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all active:scale-95 flex items-center gap-2"
+						>
+							<span>✓</span> Confirmar y Cerrar
+						</button>
+					</div>
 				</div>
 
 				<!-- Actions Panel (Right Side) -->

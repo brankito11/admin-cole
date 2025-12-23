@@ -1,29 +1,36 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { hijoService } from '$lib/services';
+	import { page } from '$app/stores';
+	import { auth } from '$lib/stores/auth';
+	import { studentService } from '$lib/services/student.service';
 	import type { Hijo } from '$lib/interfaces';
 
-	let hijos: Hijo[] = [];
-	let selectedHijo: Hijo | null = null;
-	let loading = true;
+	let hijos: any[] = $state([]);
+	let selectedHijo: any = $state(null);
+	let loading = $state(true);
 
-	// Mock data for demonstration - in real app this would come from API
-	const boletines: any[] = [];
-	const subjects: any[] = [];
+	// Get student_id from URL query
+	const studentIdFromUrl = $derived($page.url.searchParams.get('student_id'));
 
 	onMount(async () => {
-		try {
-			loading = true;
-			hijos = await hijoService.getHijos();
-			
-			// Select first hijo by default if available
-			if (hijos.length > 0) {
-				selectedHijo = hijos[0];
+		if ($auth?._id) {
+			try {
+				loading = true;
+				hijos = await studentService.getChildrenByParent($auth._id);
+
+				if (hijos.length > 0) {
+					// Select by URL ID or default to first
+					if (studentIdFromUrl) {
+						selectedHijo = hijos.find((h) => (h._id || h.id) === studentIdFromUrl) || hijos[0];
+					} else {
+						selectedHijo = hijos[0];
+					}
+				}
+			} catch (error) {
+				console.error('Error loading hijos for boletin:', error);
+			} finally {
+				loading = false;
 			}
-		} catch (error) {
-			console.error('Error loading hijos:', error);
-		} finally {
-			loading = false;
 		}
 	});
 
@@ -37,7 +44,6 @@
 		if (grade >= 9) return 'text-green-600';
 		if (grade >= 7) return 'text-blue-600';
 		if (grade >= 5) return 'text-yellow-600';
-		return 'text-red-600';
 	}
 </script>
 
@@ -53,11 +59,16 @@
 		</div>
 	{:else if hijos.length === 0}
 		<!-- No children registered message -->
-		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center"
+		>
 			<div class="text-6xl mb-4">👨‍👩‍👧‍👦</div>
-			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">No tienes hijos registrados</h3>
+			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">
+				No tienes hijos registrados
+			</h3>
 			<p class="text-gray-600 dark:text-gray-400 mb-6">
-				Debes registrar al menos un hijo en la sección de Configuración para poder ver sus boletines de notas.
+				Debes registrar al menos un hijo en la sección de Configuración para poder ver sus boletines
+				de notas.
 			</p>
 			<a
 				href="/app/configuracion"
@@ -72,19 +83,29 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-blue-100 text-sm font-medium">Estudiante</p>
-					<p class="text-2xl font-bold mt-2">{selectedHijo.nombre} {selectedHijo.apellido}</p>
-					<p class="text-blue-100 text-sm mt-1">{selectedHijo.grado} {selectedHijo.curso || ''}</p>
+					<p class="text-2xl font-bold mt-2">
+						{selectedHijo.nombre || selectedHijo.nombres}
+						{selectedHijo.apellido || selectedHijo.apellidos}
+					</p>
+					<p class="text-blue-100 text-sm mt-1">
+						{selectedHijo.grado || ''}
+						{selectedHijo.curso || selectedHijo.paralelo || ''}
+					</p>
 				</div>
 				<div class="text-6xl opacity-80">🎓</div>
 			</div>
 		</div>
 
 		<!-- Message: No grades available yet -->
-		<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 text-center"
+		>
 			<div class="text-6xl mb-4">📊</div>
-			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">Calificaciones no disponibles</h3>
+			<h3 class="text-xl font-bold text-gray-900 dark:text-white mb-2">
+				Calificaciones no disponibles
+			</h3>
 			<p class="text-gray-600 dark:text-gray-400">
-				Las calificaciones de {selectedHijo.nombre} estarán disponibles próximamente.
+				Las calificaciones de {selectedHijo.nombre || selectedHijo.nombres} estarán disponibles próximamente.
 			</p>
 		</div>
 	{/if}

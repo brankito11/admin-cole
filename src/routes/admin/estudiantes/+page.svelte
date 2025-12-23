@@ -165,65 +165,54 @@
 
 	async function initData() {
 		isLoadingData = true;
-
 		try {
-			const res = (await cursoService.getAll(0, 1000)) as any;
+			try {
+				const res = (await cursoService.getAll(0, 1000)) as any;
+				courses = Array.isArray(res) ? res : res.data || res.value || [];
+				console.log('✓ Courses loaded:', courses.length);
 
-			// API might return 'data', 'value', or the array directly
+				const newLevels: Record<string, Set<string>> = {};
+				courses.forEach((c) => {
+					const cId = String(c._id || c.id);
+					courseMap[cId] = c;
+					if (c.codigo) courseMap[c.codigo] = c;
+					if (c.nombre) courseMap[c.nombre] = c;
+					if (c.malla_id) courseMap[c.malla_id] = c;
 
-			courses = Array.isArray(res) ? res : res.data || res.value || [];
+					const niv = c.nivel || 'Otros';
+					if (!newLevels[niv]) newLevels[niv] = new Set();
+					newLevels[niv].add(c.nombre);
+				});
 
-			console.log('✓ Courses loaded:', courses.length);
+				const updatedLevels: Record<string, string[]> = {};
+				['Inicial', 'Primaria', 'Secundaria'].forEach((key) => {
+					if (newLevels[key]) {
+						updatedLevels[key] = sortGrades(Array.from(newLevels[key]));
+						delete newLevels[key];
+					}
+				});
 
-			const newLevels: Record<string, Set<string>> = {};
-
-			courses.forEach((c) => {
-				const cId = String(c._id || c.id);
-
-				courseMap[cId] = c;
-
-				if (c.codigo) courseMap[c.codigo] = c;
-
-				if (c.nombre) courseMap[c.nombre] = c;
-
-				if (c.malla_id) courseMap[c.malla_id] = c;
-
-				const niv = c.nivel || 'Otros';
-
-				if (!newLevels[niv]) newLevels[niv] = new Set();
-
-				newLevels[niv].add(c.nombre);
-			});
-
-			const updatedLevels: Record<string, string[]> = {};
-
-			['Inicial', 'Primaria', 'Secundaria'].forEach((key) => {
-				if (newLevels[key]) {
+				Object.keys(newLevels).forEach((key) => {
 					updatedLevels[key] = sortGrades(Array.from(newLevels[key]));
+				});
 
-					delete newLevels[key];
+				levels = updatedLevels;
+				if (Object.keys(levels).length === 0) {
+					levels = { 'Sin Asignar': ['General'] };
 				}
-			});
-
-			Object.keys(newLevels).forEach((key) => {
-				updatedLevels[key] = sortGrades(Array.from(newLevels[key]));
-			});
-
-			levels = updatedLevels;
-
-			console.log('✓‘ Available levels:', Object.keys(levels));
-
-			await loadStudents();
-		} catch (e) {
-			console.error('Error initializing data', e);
-
-			// Fail-safe: Ensure levels has at least a fallback if courses fail
-
-			if (Object.keys(levels).length === 0) {
-				levels = { 'Sin Asignar': ['General'] };
+			} catch (courseErr) {
+				console.warn('⚠️ Courses failed to load in estudiantes page:', courseErr);
+				if (Object.keys(levels).length === 0) {
+					levels = { 'Sin Asignar': ['General'] };
+				}
 			}
 
 			await loadStudents();
+		} catch (e) {
+			console.error('Error initializing data in estudiantes', e);
+			await loadStudents();
+		} finally {
+			isLoadingData = false;
 		}
 	}
 

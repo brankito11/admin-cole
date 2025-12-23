@@ -36,12 +36,6 @@
 	let foundStudents: any[] = $state([]);
 	let searchingStudents = $state(false);
 
-	// Parent Search
-	let showParentModal = $state(false);
-	let parentSearch = $state('');
-	let foundParents: User[] = $state([]);
-	let searchingParents = $state(false);
-
 	let allLicenses: any[] = $state([]);
 	let searchTerm = $state('');
 	let filterStatus = $state('Todos');
@@ -167,13 +161,12 @@
 		editingLicense = null;
 		formData = {
 			student: '',
-			parent: '',
+			student_id: '',
 			type: 'Permiso Médico',
 			date: new Date().toISOString().split('T')[0],
 			duration: '',
-			status: 'Pendiente',
 			reason: '',
-			grade: ''
+			attachment: null
 		};
 		showModal = true;
 	}
@@ -261,28 +254,9 @@
 	}
 
 	function selectStudent(student: any) {
-		formData.student = student.nombres + ' ' + student.apellidos;
-		formData.student_id = student.id || student._id;
-
-		// Auto-fill grade
-		const curso = courseMap[student.curso_id];
-		if (curso) {
-			formData.grade = curso.nombre;
-		} else {
-			formData.grade = student.grade || student.grado || '';
-		}
-
 		showStudentModal = false;
 		studentSearch = '';
 		foundStudents = [];
-	}
-
-	function selectParent(parent: User) {
-		formData.parent = parent.nombre + ' ' + parent.apellido;
-		formData.parent_id = parent.id;
-		showParentModal = false;
-		parentSearch = '';
-		foundParents = [];
 	}
 </script>
 
@@ -545,31 +519,6 @@
 					</div>
 					<div>
 						<label
-							for="parent-name"
-							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-							>Padre/Tutor</label
-						>
-						<div class="flex gap-2">
-							<input
-								id="parent-name"
-								type="text"
-								bind:value={formData.parent}
-								placeholder="Selecciona un tutor..."
-								readonly
-								required
-								class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
-							/>
-							<button
-								type="button"
-								onclick={() => (showParentModal = true)}
-								class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
-							>
-								🔍
-							</button>
-						</div>
-					</div>
-					<div>
-						<label
 							for="license-type"
 							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Tipo</label
 						>
@@ -582,19 +531,6 @@
 							<option>Permiso Familiar</option>
 							<option>Permiso Personal</option>
 						</select>
-					</div>
-					<div>
-						<label
-							for="license-grade"
-							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Grado</label
-						>
-						<input
-							id="license-grade"
-							type="text"
-							bind:value={formData.grade}
-							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-						/>
 					</div>
 					<div>
 						<label
@@ -637,6 +573,30 @@
 							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
 						></textarea>
 					</div>
+					{#if formData.type === 'Permiso Personal'}
+						<div class="col-span-2">
+							<label
+								for="license-attachment"
+								class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+								>Adjuntar Archivo (Opcional)</label
+							>
+							<input
+								id="license-attachment"
+								type="file"
+								accept="image/*,.pdf"
+								onchange={(e) => {
+									const target = e.target as HTMLInputElement;
+									if (target.files && target.files[0]) {
+										formData.attachment = target.files[0];
+									}
+								}}
+								class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+							/>
+							<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								Formatos permitidos: Imágenes (JPG, PNG) o PDF
+							</p>
+						</div>
+					{/if}
 					<div>
 						<label
 							for="license-status"
