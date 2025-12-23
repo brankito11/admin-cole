@@ -63,9 +63,22 @@ class PadreService {
 	 */
 	async getLinkedStudents(padreId: string): Promise<any[]> {
 		try {
-			return await apiCole.get<any[]>(`/papas/${padreId}/hijos`);
-		} catch (error) {
-			console.error('Error al obtener estudiantes vinculados:', error);
+			console.log('🔍 Fetching linked students for padre:', padreId);
+			const response = await apiCole.get<any>(`/papas/${padreId}/hijos`);
+			console.log('📦 Linked students response:', response);
+
+			// Handle different response formats
+			const students = Array.isArray(response) ? response : response.data || response.value || [];
+			console.log(`✅ Found ${students.length} linked students`);
+
+			return students;
+		} catch (error: any) {
+			console.error('❌ Error fetching linked students:', error);
+			console.error('Error details:', {
+				message: error.message,
+				status: error.status,
+				response: error.response
+			});
 			return [];
 		}
 	}

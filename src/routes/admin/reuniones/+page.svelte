@@ -481,8 +481,8 @@
 									</div>
 									<div class="text-xs text-gray-500 dark:text-gray-400">
 										{new Date(reunion.fecha_hora).toLocaleTimeString('es-ES', {
-											hour: '2d',
-											minute: '2d'
+											hour: '2-digit',
+											minute: '2-digit'
 										})}
 									</div>
 								</td>
@@ -684,8 +684,8 @@
 				<div class="text-6xl mb-4">⚠️</div>
 				<h2 class="text-2xl font-bold text-gray-900 mb-4">¿Eliminar Reunión?</h2>
 				<p class="text-gray-600 mb-6">
-					¿Estás seguro de que deseas eliminar <strong>{reunionToDelete.nombre_reunion}</strong>?
-					Esta acción no se puede deshacer.
+					¿Estás seguro de que deseas eliminar <strong>{reunionToDelete.titulo}</strong>? Esta
+					acción no se puede deshacer.
 				</p>
 
 				<div class="flex gap-3">

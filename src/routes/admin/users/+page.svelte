@@ -208,7 +208,8 @@
 
 			allUsersRaw = data.map((u: any) => ({
 				...u,
-				_id: u._id || u.id || ''
+				_id: u._id || u.id || '',
+				role: (u.role || '').toUpperCase()
 			}));
 			totalUsers = total;
 
@@ -273,7 +274,7 @@
 				loadUsers(),
 				(async () => {
 					try {
-						const sRes = (await studentService.getAll({ page: 1, per_page: 1500 })) as any;
+						const sRes = (await studentService.getAll({ page: 1, per_page: 100 })) as any;
 						const students = Array.isArray(sRes) ? sRes : sRes.data || [];
 						studentMapByParent = {};
 						students.forEach((s: any) => {
@@ -423,10 +424,10 @@
 		}
 
 		const cleanParentId = String(parentId);
+		console.log('👶 Loading children for parent:', cleanParentId);
 
 		try {
-			console.log('🔄 Loading children for parent ID:', cleanParentId);
-			// Get manual hijo records
+			// Get manual hijo records (if endpoint exists)
 			const hRes = (await hijoService.getHijosByPadre(cleanParentId)) as any;
 			const manualHijos = (Array.isArray(hRes) ? hRes : hRes.data || hRes.value || []).map(
 				(h: any) => ({
@@ -434,29 +435,12 @@
 					_id: h._id || h.id || ''
 				})
 			);
+			console.log(`📝 Manual hijos found: ${manualHijos.length}`);
 
-			// Get students already linked to this parent from backend
+			// Get linked students from local map (already loaded in initData)
 			let linkedStudents: any[] = [];
-			try {
-				const sRes = (await padreService.getLinkedStudents(cleanParentId)) as any;
-				const studentsFromBackend = Array.isArray(sRes) ? sRes : sRes.data || sRes.value || [];
-
-				linkedStudents = studentsFromBackend.map((s: any) => ({
-					_id: s._id || s.id,
-					nombre: s.nombre || s.nombres || '',
-					apellido: s.apellido || s.apellidos || '',
-					grado: s.courseName || s.grado || s.curso?.nombre || '',
-					curso: s.courseSection || s.seccion || s.curso?.paralelo || '',
-					fecha_nacimiento: s.fecha_nacimiento || '',
-					isStudent: true // Flag to distinguish
-				}));
-			} catch (err) {
-				console.warn('⚠️ Direct linked fetch failed, using local map fallback:', err);
-			}
-
-			// Fallback: If linked students are empty or fetch failed, check local map
-			if (linkedStudents.length === 0 && studentMapByParent[cleanParentId]) {
-				console.log('💡 Using local fallback map for parent children');
+			if (studentMapByParent[cleanParentId]) {
+				console.log('💡 Using local student map for parent children');
 				const localMatches = studentMapByParent[cleanParentId];
 				linkedStudents = localMatches.map((s: any) => ({
 					_id: s._id || s.id || '',
@@ -467,6 +451,9 @@
 					fecha_nacimiento: s.fecha_nacimiento || '',
 					isStudent: true
 				}));
+				console.log(`✅ Found ${linkedStudents.length} linked students from local map`);
+			} else {
+				console.log('ℹ️ No students found in local map for this parent');
 			}
 
 			// Merge both lists, ensuring unique _id to avoid Svelte errors
@@ -477,9 +464,10 @@
 			});
 			parentChildren = Array.from(childrenMap.values());
 
-			console.log(`✅ Loaded ${parentChildren.length} total children for parent.`);
+			console.log(`📋 Final parentChildren:`, $state.snapshot(parentChildren));
+			console.log(`✅ Total children loaded: ${parentChildren.length}`);
 		} catch (e) {
-			console.error('Error loading children:', e);
+			console.error('💥 Error loading children:', e);
 		} finally {
 			loadingChildren = false;
 		}
@@ -805,45 +793,37 @@
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg border border-white/10">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#D8E0C7] text-sm font-medium">Total Usuarios</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Resultados</p>
 					<p class="text-3xl font-bold mt-2">{totalUsers}</p>
 				</div>
 				<div class="text-5xl opacity-80">👥</div>
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-[#5A6840] to-[#6E7D4E] rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#5A6840] to-[#6E7D4E] rounded-2xl p-6 text-white shadow-lg border border-white/10">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#D8E0C7] text-sm font-medium">Administradores</p>
+					<p class="text-[#D8E0C7] text-sm font-medium">Rol Actual</p>
 					<p class="text-3xl font-bold mt-2">
-						{#if filterRole.toLowerCase() === 'admin'}
-							{totalUsers}
-						{:else}
-							-
-						{/if}
+						{filterRole}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">🛡️</div>
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg border border-white/10">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#F0E6D2] text-sm font-medium">Padres</p>
+					<p class="text-[#F0E6D2] text-sm font-medium">Búsqueda</p>
 					<p class="text-3xl font-bold mt-2">
-						{#if filterRole.toLowerCase() === 'padre'}
-							{totalUsers}
-						{:else}
-							-
-						{/if}
+						{searchTerm ? 'Activa' : 'Ninguna'}
 					</p>
 				</div>
-				<div class="text-5xl opacity-80">👨‍👩‍👧</div>
+				<div class="text-5xl opacity-80">🔍</div>
 			</div>
 		</div>
 	</div>
@@ -894,15 +874,20 @@
 										<div
 											class="h-10 w-10 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-gray-500 dark:text-gray-300 font-bold text-lg"
 										>
-											{(user.username || user.email || '?').charAt(0).toUpperCase()}
+											{(user.role === 'ADMIN' ? user.username : user.email || '?')
+												.charAt(0)
+												.toUpperCase()}
 										</div>
 										<div class="ml-4">
 											<div class="text-sm font-semibold text-gray-900 dark:text-white">
-												{user.username}
+												{user.role === 'ADMIN' ? user.username : user.email}
 											</div>
 											<div class="text-xs text-gray-500 dark:text-gray-400">
-												{user.nombre || ''}
-												{user.apellido || ''}
+												{#if user.role === 'ADMIN'}
+													Administrador
+												{:else}
+													{user.nombre || ''} {user.apellido || ''}
+												{/if}
 											</div>
 										</div>
 									</div>

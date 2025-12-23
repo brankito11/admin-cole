@@ -20,10 +20,18 @@ class HijoService {
 	 */
 	async getHijosByPadre(padreId: string): Promise<HijoResponse> {
 		try {
-			return await apiCole.get<HijoResponse>(`/hijos/padre/${padreId}`);
-		} catch (error) {
+			console.log('📝 Fetching manual hijos for padre:', padreId);
+			const response = await apiCole.get<HijoResponse>(`/hijos/padre/${padreId}`);
+			console.log('✅ Manual hijos response:', response);
+			return response;
+		} catch (error: any) {
+			// If endpoint doesn't exist (404), return empty array gracefully
+			if (error.status === 404 || error.message?.includes('Not Found')) {
+				console.log('ℹ️ Manual hijos endpoint not available, returning empty array');
+				return [] as any;
+			}
 			console.error('Error al obtener hijos del padre:', error);
-			throw error;
+			return [] as any;
 		}
 	}
 

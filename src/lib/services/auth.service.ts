@@ -12,7 +12,81 @@ import type {
 const API_BASE_URL = 'https://admin-cole-2.onrender.com/api';
 
 class AuthService {
-	// Método para login usando OAuth2 Password Grant (form-urlencoded)
+	// Método para login de administrador (Username + Password) - JSON
+	async loginAdmin(credentials: { username: string; password: string }): Promise<LoginResponse> {
+		try {
+			console.log('🔐 Admin Login request:', {
+				url: `${API_BASE_URL}/auth/login/admin`,
+				username: credentials.username
+			});
+
+			const response = await fetch(`${API_BASE_URL}/auth/login/admin`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Accept: 'application/json'
+				},
+				body: JSON.stringify({
+					username: credentials.username,
+					password: credentials.password
+				})
+			});
+
+			console.log('📡 Admin Login response:', response.status, response.statusText);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ Admin Login error:', errorText);
+				throw new Error(`Error ${response.status}: ${errorText || 'Credenciales inválidas'}`);
+			}
+
+			const data = await response.json();
+			console.log('✅ Admin Login exitoso');
+			return data;
+		} catch (error) {
+			console.error('💥 Admin Login exception:', error);
+			throw error;
+		}
+	}
+
+	// Método para login de padre (Email + Password) - JSON
+	async loginPadre(credentials: { email: string; password: string }): Promise<LoginResponse> {
+		try {
+			console.log('🔐 Padre Login request:', {
+				url: `${API_BASE_URL}/auth/login/padre`,
+				email: credentials.email
+			});
+
+			const response = await fetch(`${API_BASE_URL}/auth/login/padre`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Accept: 'application/json'
+				},
+				body: JSON.stringify({
+					email: credentials.email,
+					password: credentials.password
+				})
+			});
+
+			console.log('📡 Padre Login response:', response.status, response.statusText);
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ Padre Login error:', errorText);
+				throw new Error(`Error ${response.status}: ${errorText || 'Credenciales inválidas'}`);
+			}
+
+			const data = await response.json();
+			console.log('✅ Padre Login exitoso');
+			return data;
+		} catch (error) {
+			console.error('💥 Padre Login exception:', error);
+			throw error;
+		}
+	}
+
+	// Método genérico de login (mantiene compatibilidad)
 	async login(credentials: LoginCredentials): Promise<LoginResponse> {
 		try {
 			const formData = new URLSearchParams();

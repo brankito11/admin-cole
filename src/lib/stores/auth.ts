@@ -10,15 +10,30 @@ function createAuthStore() {
 
 	return {
 		subscribe,
-		login: async (credentials: LoginCredentials): Promise<boolean> => {
+		login: async (credentials: LoginCredentials & { isAdminMode?: boolean }): Promise<boolean> => {
 			try {
-				const response = await authService.login(credentials);
+				let response: any;
+
+				// Use the appropriate login endpoint based on user type
+				if (credentials.isAdminMode) {
+					// Admin login: username + password
+					response = await authService.loginAdmin({
+						username: credentials.username,
+						password: credentials.password
+					});
+				} else {
+					// Parent login: email (as username) + password
+					response = await authService.loginPadre({
+						email: credentials.username, // The username field contains the email for parents
+						password: credentials.password
+					});
+				}
+
 				if (response.access_token) {
 					if (browser) {
 						localStorage.setItem(AUTH_TOKEN_KEY, response.access_token);
 					}
 					// Store complete user information from login response
-					// El usuario viene dentro de response.user según el OpenAPI spec
 					set({
 						email: response.user.email,
 						username: response.user.username,
@@ -31,10 +46,13 @@ function createAuthStore() {
 						token: response.access_token
 					});
 
-					// Redirect based on user role
-					if (response.user.role === 'admin' || response.user.is_superuser) {
+					// Redirect based on user role (case-insensitive comparison)
+					const userRole = (response.user.role || '').toUpperCase();
+					if (userRole === 'ADMIN' || response.user.is_superuser) {
+						console.log('🔐 Redirecting to admin panel');
 						goto('/admin');
 					} else {
+						console.log('👨‍👩‍👧 Redirecting to parent panel');
 						goto('/app');
 					}
 					return true;

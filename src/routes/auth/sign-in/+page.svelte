@@ -16,7 +16,11 @@
 		try {
 			// Use username for admin, email for parents
 			const loginUsername = isAdminMode ? username : email;
-			const success = await auth.login({ username: loginUsername, password });
+			const success = await auth.login({ 
+				username: loginUsername, 
+				password,
+				isAdminMode 
+			});
 			if (!success) {
 				error = 'Credenciales inválidas. Intente nuevamente.';
 			}
