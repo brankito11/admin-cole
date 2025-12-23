@@ -17,7 +17,7 @@
 	let courseMap: any = $state({});
 	let levels: Record<string, string[]> = $state({});
 
-	let formData = $state({
+	let formData: any = $state({
 		student: '',
 		student_id: '',
 		parent: '',
@@ -27,14 +27,20 @@
 		duration: '',
 		status: 'Pendiente',
 		reason: '',
-		grade: ''
+		grade: '',
+		attachment: null
 	});
 
-	// Student Search
+	// Student & Parent Search
 	let showStudentModal = $state(false);
 	let studentSearch = $state('');
 	let foundStudents: any[] = $state([]);
 	let searchingStudents = $state(false);
+
+	let showParentModal = $state(false);
+	let parentSearch = $state('');
+	let foundParents: any[] = $state([]);
+	let searchingParents = $state(false);
 
 	let allLicenses: any[] = $state([]);
 	let searchTerm = $state('');
@@ -162,10 +168,14 @@
 		formData = {
 			student: '',
 			student_id: '',
+			parent: '',
+			parent_id: '',
 			type: 'Permiso Médico',
 			date: new Date().toISOString().split('T')[0],
 			duration: '',
 			reason: '',
+			status: 'Pendiente',
+			grade: '',
 			attachment: null
 		};
 		showModal = true;
@@ -254,9 +264,19 @@
 	}
 
 	function selectStudent(student: any) {
+		formData.student = `${student.nombres} ${student.apellidos}`;
+		formData.student_id = student._id || student.id;
 		showStudentModal = false;
 		studentSearch = '';
 		foundStudents = [];
+	}
+
+	function selectParent(parent: any) {
+		formData.parent = `${parent.nombre} ${parent.apellido}`;
+		formData.parent_id = parent._id || parent.id;
+		showParentModal = false;
+		parentSearch = '';
+		foundParents = [];
 	}
 </script>
 
@@ -512,6 +532,30 @@
 								type="button"
 								onclick={() => (showStudentModal = true)}
 								class="px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors"
+							>
+								🔍
+							</button>
+						</div>
+					</div>
+					<div>
+						<label
+							for="parent-name"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>Padre / Tutor</label
+						>
+						<div class="flex gap-2">
+							<input
+								id="parent-name"
+								type="text"
+								bind:value={formData.parent}
+								placeholder="Selecciona un tutor..."
+								readonly
+								class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+							/>
+							<button
+								type="button"
+								onclick={() => (showParentModal = true)}
+								class="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
 							>
 								🔍
 							</button>
