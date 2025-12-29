@@ -82,6 +82,22 @@ class PadreService {
 			return [];
 		}
 	}
+
+	/**
+	 * Desvincular un estudiante de un padre
+	 * @param padreId ID del padre
+	 * @param studentId ID del estudiante a desvincular
+	 */
+	async unlinkChild(padreId: string, studentId: string): Promise<void> {
+		try {
+			console.log('🔗 Unlinking student:', studentId, 'from parent:', padreId);
+			await apiCole.delete(`/papas/${padreId}/hijos/${studentId}`);
+			console.log('✅ Student unlinked successfully');
+		} catch (error) {
+			console.error('❌ Error unlinking student:', error);
+			throw error;
+		}
+	}
 }
 
 export const padreService = new PadreService();

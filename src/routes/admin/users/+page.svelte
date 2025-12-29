@@ -438,16 +438,27 @@
 		console.log('👶 Loading children for parent:', parentId);
 
 		try {
-			// 1. Get from backend API
+			// 1. Get linked students from backend API using the correct endpoint
 			let childrenFromApi: any[] = [];
 			try {
-				childrenFromApi = await studentService.getChildrenByParent(parentId);
-				console.log(`✅ Loaded ${childrenFromApi.length} children from backend`);
+				// Use padreService.getLinkedStudents which calls /papas/{padreId}/hijos
+				childrenFromApi = await padreService.getLinkedStudents(parentId);
+				console.log(`✅ Loaded ${childrenFromApi.length} linked students from backend`);
 			} catch (apiErr) {
 				console.warn('⚠️ API fetch failed, falling back to local map:', apiErr);
 			}
 
-			// 2. Map API results
+			// 2. Get manual children (hijos) from hijo service
+			let manualChildren: any[] = [];
+			try {
+				const hijoResponse = await hijoService.getHijosByPadre(parentId);
+				manualChildren = Array.isArray(hijoResponse) ? hijoResponse : [];
+				console.log(`✅ Loaded ${manualChildren.length} manual children from backend`);
+			} catch (hijoErr) {
+				console.warn('⚠️ Manual children fetch failed:', hijoErr);
+			}
+
+			// 3. Map linked students (from API)
 			const mappedApiChildren = childrenFromApi.map((child: any) => {
 				const cId = String(child.curso_id || '');
 				const c = courseMap[cId];
@@ -459,25 +470,45 @@
 					apellido: child.apellido || child.apellidos || '',
 					grado: c ? c.nombre : child.grado || '',
 					curso: c ? c.paralelo : child.seccion || '',
-					isStudent: true
+					courseName: c ? c.nombre : child.grado || '',
+					courseLevel: c ? c.nivel : child.nivel || '',
+					courseShift: c ? c.turno : child.turno || '',
+					courseSection: c ? c.paralelo : child.seccion || '',
+					isStudent: true // Mark as linked student
 				};
 			});
 
-			// 3. Get from local mapping (especially useful right after linking)
+			// 4. Map manual children
+			const mappedManualChildren = manualChildren.map((child: any) => ({
+				...child,
+				_id: child._id || child.id || '',
+				nombre: child.nombre || child.nombres || '',
+				apellido: child.apellido || child.apellidos || '',
+				grado: child.grado || '',
+				curso: child.curso || '',
+				isStudent: false // Mark as manual hijo
+			}));
+
+			// 5. Get from local mapping (especially useful right after linking)
 			const localMatches = studentMapByParent[parentId] || [];
 			console.log(`💡 Local map has ${localMatches.length} students for this parent`);
 
-			// 4. Merge lists by ID to avoid duplicates
+			// 6. Merge all lists by ID to avoid duplicates
 			const uniqueChildren = new Map();
 
 			// Local matches first (might have fresher data for newly linked)
 			localMatches.forEach((child) => {
 				const id = String(child._id || child.id || '');
-				if (id) uniqueChildren.set(id, { ...child, _id: id });
+				if (id) uniqueChildren.set(id, { ...child, _id: id, isStudent: true });
 			});
 
-			// API results override/complement
+			// API linked students override/complement
 			mappedApiChildren.forEach((child) => {
+				uniqueChildren.set(child._id, child);
+			});
+
+			// Manual children (always add, they have different IDs)
+			mappedManualChildren.forEach((child) => {
 				uniqueChildren.set(child._id, child);
 			});
 
@@ -618,21 +649,42 @@
 		}
 	}
 
-	async function unlinkStudent(childId: string) {
-		// Since 'hijo' might be represented differently, if it's a student record we just clear padre_id
-		// but if it's a separate hijo record, we use the deleteHijo
+	async function unlinkStudent(child: any) {
 		if (!confirm('¿Estás seguro de desvincular este estudiante?')) return;
+
+		if (!selectedParent) return;
+		const pId = selectedParent._id || (selectedParent as any).id;
+		const childId = child._id || child.id;
+
 		try {
-			// This depends on whether hijo is a separate entity or just a student
-			// The current code uses hijoService.deleteHijo
-			await hijoService.deleteHijo(childId);
-			if (selectedParent) {
-				const pId = selectedParent._id || (selectedParent as any).id;
-				await loadParentChildren(pId);
+			// If it's a linked student (isStudent: true), use padreService.unlinkChild
+			// If it's a manual hijo record (isStudent: false), use hijoService.deleteHijo
+			if (child.isStudent) {
+				console.log('🔗 Unlinking student from parent...');
+				await padreService.unlinkChild(pId, childId);
+
+				// Update local mapping immediately
+				if (studentMapByParent[pId]) {
+					studentMapByParent[pId] = studentMapByParent[pId].filter(
+						(s) => (s._id || s.id) !== childId
+					);
+				}
+			} else {
+				console.log('🗑️ Deleting manual hijo record...');
+				await hijoService.deleteHijo(childId);
 			}
+
+			// Reload the children list
+			await loadParentChildren(pId);
+
+			// Refresh background data
+			initData();
 		} catch (error) {
 			console.error('Error unlinking:', error);
-			alert('Error al desvincular estudiante');
+			alert(
+				'Error al desvincular estudiante: ' +
+					(error instanceof Error ? error.message : 'Error desconocido')
+			);
 		}
 	}
 
@@ -1244,7 +1296,7 @@
 									</div>
 									<button
 										onclick={() =>
-											child.isStudent ? unlinkStudent(child._id!) : handleDeleteChild(child._id!)}
+											child.isStudent ? unlinkStudent(child) : handleDeleteChild(child._id!)}
 										class="flex items-center gap-1.5 px-3 py-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-xl transition-all border border-red-100 dark:border-red-800 text-xs font-bold shadow-sm active:scale-95"
 										title={child.isStudent ? 'Desvincular estudiante' : 'Eliminar hijo'}
 									>
