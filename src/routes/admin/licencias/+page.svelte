@@ -8,6 +8,43 @@
 	import CourseFilter from '$lib/components/CourseFilter.svelte';
 	import type { User } from '$lib/interfaces';
 
+	const formatDate = (dateString: string | undefined): string => {
+		if (!dateString || dateString === 'N/A') return 'S/F';
+		try {
+			const date = new Date(dateString);
+			if (isNaN(date.getTime())) return dateString;
+			return date.toLocaleDateString('es-ES', {
+				day: '2-digit',
+				month: '2-digit',
+				year: 'numeric'
+			});
+		} catch (e) {
+			return dateString;
+		}
+	};
+
+	const normalizeId = (id: any): string => {
+		if (!id) return '';
+		if (typeof id === 'string') return id;
+		if (typeof id === 'object') {
+			if (id.$oid) return String(id.$oid);
+			if (id.id) return normalizeId(id.id);
+			if (id._id) return normalizeId(id._id);
+		}
+		return String(id);
+	};
+
+	const getStatusStyle = (status: string) => {
+		const s = status?.toLowerCase() || '';
+		if (s.includes('aprobada'))
+			return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800';
+		if (s.includes('pendiente'))
+			return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800';
+		if (s.includes('rechazada'))
+			return 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800';
+		return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700';
+	};
+
 	let showModal = $state(false);
 	let editingLicense: any = $state(null);
 	let loading = $state(false);
@@ -16,6 +53,8 @@
 	let courses: any[] = $state([]);
 	let courseMap: any = $state({});
 	let levels: Record<string, string[]> = $state({});
+	let studentMap: Record<string, any> = $state({});
+	let parentMap: Record<string, any> = $state({});
 
 	let formData: any = $state({
 		student: '',
@@ -28,8 +67,14 @@
 		status: 'Pendiente',
 		reason: '',
 		grade: '',
-		attachment: null
+		attachment: null,
+		adjunto_url: '',
+		comentario: ''
 	});
+
+	let showDetailsModal = $state(false);
+	let selectedLicenseForDetails: any = $state(null);
+	let rejectionComment = $state('');
 
 	// Student & Parent Search
 	let showStudentModal = $state(false);
@@ -97,9 +142,55 @@
 				levels[k] = Array.from(newLevels[k]).sort();
 			});
 
+			// 2. Cargar Estudiantes y Padres en paralelo para no bloquear
+			console.log('⏳ Iniciando carga de caches...');
+			try {
+				const [studentRes, parentRes] = await Promise.all([
+					studentService.getAll({ per_page: 1000 }).catch((err) => {
+						console.warn('⚠️ Falló carga de estudiantes para cache:', err);
+						return [];
+					}),
+					userService.getUsers({ role: 'PADRE', per_page: 1000 }).catch((err) => {
+						console.warn('⚠️ Falló carga de usuarios para cache:', err);
+						return [];
+					})
+				]);
+
+				// Cache de Estudiantes
+				const resEst = studentRes as any;
+				const studentsArr = Array.isArray(resEst) ? resEst : resEst?.data || [];
+				studentsArr.forEach((s: any) => {
+					const sid = normalizeId(s._id || s.id);
+					if (sid) studentMap[sid] = s;
+				});
+
+				// Cache de Padres
+				const resPad = parentRes as any;
+				const parentsArr = Array.isArray(resPad) ? resPad : resPad?.data || [];
+				parentsArr.forEach((p: any) => {
+					const pid = normalizeId(p._id || p.id);
+					if (pid) parentMap[pid] = p;
+				});
+				console.log(
+					`✅ Caches listos: ${Object.keys(studentMap).length} estudiantes, ${Object.keys(parentMap).length} padres.`
+				);
+				if (Object.keys(studentMap).length > 0) {
+					const k = Object.keys(studentMap)[0];
+					console.log(
+						'🔍 CACHE SAMPLE (ID):',
+						k,
+						'DATA:',
+						studentMap[k].nombres || studentMap[k].nombre
+					);
+				}
+			} catch (cacheErr) {
+				console.error('❌ Error crítico cargando caches:', cacheErr);
+			}
+
 			await loadLicenses();
 		} catch (e) {
 			console.error('Init licencias error:', e);
+			await loadLicenses(); // Intentar cargar licencias incluso si falla el resto
 		} finally {
 			isLoadingData = false;
 		}
@@ -123,18 +214,127 @@
 			const response = await licenciaService.getAll(filters);
 			const rawData = (response as any).data || (Array.isArray(response) ? response : []);
 
+			let loggedMappingFail = false;
 			allLicenses = rawData.map((l: any) => {
-				const c = courseMap[l.curso_id || ''];
-				return {
-					...l,
-					student: l.estudiante_nombre || l.student || 'S/N',
-					parent: l.padre_nombre || l.parent || 'S/N',
-					nivel: c ? c.nivel : l.nivel || 'S/G',
-					grade: c ? c.nombre : l.grado || 'S/G',
-					shift: c ? c.turno : l.turno || 'M',
-					section: c ? c.paralelo : l.seccion || 'A'
-				};
+				try {
+					const sid = normalizeId(
+						l.hijo_id ||
+							l.student_id ||
+							l.estudiante_id ||
+							l.id_estudiante ||
+							l.id_hijo ||
+							l.hijo ||
+							l.student ||
+							l.estudiante
+					);
+					const pid = normalizeId(
+						l.padre_id || l.parent_id || l.id_padre || l.padre || l.parent || l.tutor_id
+					);
+
+					const est =
+						(typeof l.estudiante === 'object' ? l.estudiante : null) ||
+						(typeof l.hijo === 'object' ? l.hijo : null) ||
+						studentMap[sid] ||
+						{};
+
+					const pad =
+						(typeof l.padre === 'object' ? l.padre : null) ||
+						(typeof l.parent === 'object' ? l.parent : null) ||
+						parentMap[pid] ||
+						{};
+
+					// Estudiante Name con diagnóstico
+					let sName = (est.nombres || est.nombre || est.fullName || est.first_name || '').trim();
+					if (est.apellidos || est.apellido) sName += ' ' + (est.apellidos || est.apellido);
+					sName =
+						sName.trim() ||
+						l.estudiante_nombre ||
+						l.student_name ||
+						l.hijo_nombre ||
+						l.nombre_estudiante ||
+						'';
+
+					// Fallback a strings puros
+					if (
+						!sName &&
+						typeof l.estudiante === 'string' &&
+						l.estudiante.length > 4 &&
+						!/^[0-9a-f]{24}$/i.test(l.estudiante)
+					)
+						sName = l.estudiante;
+					if (!sName && typeof l.hijo === 'string' && l.hijo.length > 4) sName = l.hijo;
+
+					// Etiqueta diagnóstica si sigue vacío
+					if (!sName) sName = sid ? `S/N [${sid.slice(-6)}]` : 'S/N';
+
+					// Padre Name con diagnóstico
+					let pName = (pad.nombre || pad.nombres || pad.fullName || pad.first_name || '').trim();
+					if (pad.apellido || pad.apellidos) pName += ' ' + (pad.apellido || pad.apellidos);
+					pName = pName.trim() || l.padre_nombre || l.parent_name || l.nombre_padre || '';
+					if (!pName) pName = pid ? `S/N [${pid.slice(-6)}]` : 'S/N';
+
+					// Academics - Fallbacks masivos
+					const sGrade =
+						est.grado ||
+						est.grade ||
+						est.curso ||
+						est.level_name ||
+						l.grad_name ||
+						l.grado ||
+						l.grade ||
+						l.estudiante_grado ||
+						'';
+					const sShift =
+						est.turno || est.shift || est.horario || l.turno || l.shift || l.estudiante_turno || '';
+					const sSec =
+						est.seccion ||
+						est.paralelo ||
+						est.section ||
+						l.seccion ||
+						l.paralelo ||
+						l.estudiante_seccion ||
+						'';
+
+					const sCurveId = l.curso_id || est.curso_id || est.id_malla || '';
+					const courseObj = courseMap[normalizeId(sCurveId)];
+
+					let dur = l.duracion || l.duration || l.tiempo;
+					if (!dur && l.fecha_inicio && l.fecha_fin) {
+						try {
+							const start = new Date(l.fecha_inicio);
+							const end = new Date(l.fecha_fin);
+							const diff =
+								Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+							dur = `${diff} día${diff > 1 ? 's' : ''}`;
+						} catch (e) {}
+					}
+
+					return {
+						...l,
+						id: normalizeId(l._id || l.id || 'S/I'),
+						student: sName.trim(),
+						parent: pName.trim(),
+						type: l.tipo || l.tipo_permiso || l.type || 'Personal',
+						date: l.fecha_inicio || l.date || 'N/A',
+						duration: dur || '1 día',
+						reason: l.motivo || l.reason || 'S/M',
+						status: l.estado || l.status || 'Pendiente',
+						nivel: courseObj ? courseObj.nivel : l.nivel || est.nivel || 'S/G',
+						grade: courseObj ? courseObj.nombre : sGrade || 'S/G',
+						shift: courseObj ? courseObj.turno : sShift || 'M',
+						section: courseObj ? courseObj.paralelo : sSec || 'A'
+					};
+				} catch (mapErr) {
+					console.error('❌ Error mapping license row:', mapErr, l);
+					return {
+						...l,
+						id: l.id || l._id || 'S/I',
+						student: 'Error al cargar',
+						status: l.estado || 'Error'
+					};
+				}
 			});
+			console.log(`✅ Mapped ${allLicenses.length} licenses.`);
 
 			total = (response as any).total || allLicenses.length;
 			totalPages = (response as any).total_pages || Math.ceil(total / perPage);
@@ -155,12 +355,6 @@
 			page = 1;
 			loadLicenses();
 		}, 500);
-	}
-
-	function getStatusStyle(status: string) {
-		if (status === 'Aprobada') return 'bg-green-100 text-green-800 border-green-200';
-		if (status === 'Pendiente') return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-		return 'bg-red-100 text-red-800 border-red-200';
 	}
 
 	function handleCreate() {
@@ -187,9 +381,47 @@
 		showModal = true;
 	}
 
-	async function handleApprove(id: number) {
-		// await licenciaService.approve(id)
-		await loadLicenses();
+	async function handleApprove(id: number | string) {
+		if (!confirm('¿Estás seguro de aprobar esta licencia?')) return;
+		loading = true;
+		try {
+			await licenciaService.aprobar(id, 'Licencia aprobada por administración');
+			alert('Licencia aprobada con éxito');
+			showDetailsModal = false;
+			await loadLicenses();
+		} catch (error: any) {
+			console.error('Error approving license:', error);
+			alert(`Error: ${error.message || 'Error desconocido'}`);
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function handleReject(id: number | string) {
+		if (!rejectionComment) {
+			const comment = prompt('Por favor, ingresa el motivo del rechazo:');
+			if (comment === null) return;
+			rejectionComment = comment;
+		}
+
+		loading = true;
+		try {
+			await licenciaService.rechazar(id, rejectionComment);
+			alert('Licencia rechazada');
+			showDetailsModal = false;
+			rejectionComment = '';
+			await loadLicenses();
+		} catch (error: any) {
+			console.error('Error rejecting license:', error);
+			alert(`Error: ${error.message || 'Error desconocido'}`);
+		} finally {
+			loading = false;
+		}
+	}
+
+	function viewDetails(license: any) {
+		selectedLicenseForDetails = license;
+		showDetailsModal = true;
 	}
 
 	async function handleDelete(id: number | string) {
@@ -290,7 +522,7 @@
 		</div>
 		<button
 			onclick={handleCreate}
-			class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
+			class="px-6 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
 			Nueva Licencia
@@ -310,10 +542,12 @@
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#8B9D6E] rounded-2xl p-6 text-white shadow-lg">
+		<div
+			class="bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl p-6 text-white shadow-lg"
+		>
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#D8E0C7] text-sm font-medium">Aprobadas</p>
+					<p class="text-emerald-50 text-sm font-medium">Aprobadas</p>
 					<p class="text-3xl font-bold mt-2">
 						{allLicenses.filter((l) => l.status === 'Aprobada').length}
 					</p>
@@ -322,10 +556,12 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-[#AA7229] to-[#C4944A] rounded-2xl p-6 text-white shadow-lg">
+		<div
+			class="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-6 text-white shadow-lg"
+		>
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#F0E6D2] text-sm font-medium">Pendientes</p>
+					<p class="text-amber-50 text-sm font-medium">Pendientes</p>
 					<p class="text-3xl font-bold mt-2">
 						{allLicenses.filter((l) => l.status === 'Pendiente').length}
 					</p>
@@ -334,10 +570,10 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-[#8B5A1B] to-[#AA7229] rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-rose-400 to-red-500 rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#F0E6D2] text-sm font-medium">Rechazadas</p>
+					<p class="text-rose-50 text-sm font-medium">Rechazadas</p>
 					<p class="text-3xl font-bold mt-2">
 						{allLicenses.filter((l) => l.status === 'Rechazada').length}
 					</p>
@@ -346,10 +582,10 @@
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-[#5A6840] to-[#6E7D4E] rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-[#D8E0C7] text-sm font-medium">Total</p>
+					<p class="text-cyan-50 text-sm font-medium">Total</p>
 					<p class="text-3xl font-bold mt-2">{allLicenses.length}</p>
 				</div>
 				<div class="text-5xl opacity-80">📋</div>
@@ -407,10 +643,6 @@
 					<tr>
 						<th
 							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-							>ID</th
-						>
-						<th
-							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estudiante</th
 						>
 						<th
@@ -431,6 +663,10 @@
 						>
 						<th
 							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							>Motivo</th
+						>
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estado</th
 						>
 						<th
@@ -442,10 +678,6 @@
 				<tbody class="divide-y divide-gray-200">
 					{#each allLicenses as license}
 						<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-							<td
-								class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
-								>#{license.id}</td
-							>
 							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
 								>{license.student}</td
 							>
@@ -456,10 +688,14 @@
 								>{license.type}</td
 							>
 							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
-								>{license.date}</td
+								>{formatDate(license.date)}</td
 							>
 							<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
 								>{license.duration}</td
+							>
+							<td
+								class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate"
+								title={license.reason}>{license.reason}</td
 							>
 							<td class="px-6 py-4 whitespace-nowrap">
 								<span
@@ -473,13 +709,24 @@
 							<td class="px-6 py-4 whitespace-nowrap text-sm">
 								<div class="flex items-center gap-2">
 									<button
+										onclick={() => viewDetails(license)}
+										class="text-cyan-600 hover:text-cyan-900 font-medium p-2 bg-cyan-50 dark:bg-cyan-900/30 rounded-lg transition-colors"
+										title="Ver Detalles / Gestionar"
+									>
+										👁️
+									</button>
+									<button
 										onclick={() => handleEdit(license)}
-										class="text-blue-600 hover:text-blue-900 font-medium"
+										class="text-blue-600 hover:text-blue-900 font-medium p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg transition-colors"
 										title="Editar"
 									>
 										✏️
 									</button>
-									<button class="text-red-600 hover:text-red-900 font-medium" title="Eliminar">
+									<button
+										onclick={() => handleDelete(license._id || license.id)}
+										class="text-rose-600 hover:text-rose-900 font-medium p-2 bg-rose-50 dark:bg-rose-900/30 rounded-lg transition-colors"
+										title="Eliminar"
+									>
 										🗑️
 									</button>
 								</div>
@@ -669,7 +916,7 @@
 					<button
 						type="submit"
 						disabled={loading}
-						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+						class="px-6 py-2 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
 					>
 						{loading ? 'Guardando...' : editingLicense ? 'Actualizar' : 'Guardar'}
 					</button>
@@ -786,6 +1033,221 @@
 							<p class="text-center py-4 text-gray-500">No se encontraron tutores</p>
 						{/if}
 					{/each}
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Modal de Detalles y Gestión -->
+{#if showDetailsModal && selectedLicenseForDetails}
+	<div
+		class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in"
+	>
+		<div
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700"
+		>
+			<!-- Header -->
+			<div
+				class="bg-gradient-to-r from-cyan-400 to-blue-500 p-6 text-white flex justify-between items-center"
+			>
+				<div>
+					<h2 class="text-2xl font-bold">Detalles de Licencia</h2>
+					<p class="text-cyan-50 opacity-90">
+						ID: #{selectedLicenseForDetails.id || selectedLicenseForDetails._id}
+					</p>
+				</div>
+				<button
+					onclick={() => (showDetailsModal = false)}
+					class="text-white hover:rotate-90 transition-transform text-2xl">✕</button
+				>
+			</div>
+
+			<div class="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+				<!-- Información -->
+				<div class="space-y-6">
+					<div class="space-y-4">
+						<h3
+							class="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-2"
+						>
+							Datos del Estudiante
+						</h3>
+						<div class="grid grid-cols-2 gap-4">
+							<div>
+								<p class="text-xs text-gray-500 uppercase font-bold">Estudiante</p>
+								<p class="text-gray-900 dark:text-white font-medium">
+									{selectedLicenseForDetails.student}
+								</p>
+							</div>
+							<div>
+								<p class="text-xs text-gray-500 uppercase font-bold">Padre / Tutor</p>
+								<p class="text-gray-900 dark:text-white font-medium">
+									{selectedLicenseForDetails.parent}
+								</p>
+							</div>
+							<div>
+								<p class="text-xs text-gray-500 uppercase font-bold">Grado</p>
+								<p class="text-gray-900 dark:text-white font-medium">
+									{selectedLicenseForDetails.grade}
+									{selectedLicenseForDetails.section}
+								</p>
+							</div>
+							<div>
+								<p class="text-xs text-gray-500 uppercase font-bold">Turno</p>
+								<p class="text-gray-900 dark:text-white font-medium">
+									{selectedLicenseForDetails.shift}
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<div class="space-y-4">
+						<h3
+							class="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-2"
+						>
+							Información de Licencia
+						</h3>
+						<div class="grid grid-cols-2 gap-4">
+							<div>
+								<p class="text-xs text-gray-500 uppercase font-bold">Tipo</p>
+								<p class="text-gray-900 dark:text-white font-medium">
+									{selectedLicenseForDetails.type}
+								</p>
+							</div>
+							<div>
+								<p class="text-xs text-gray-500 uppercase font-bold">Estado Actual</p>
+								<span
+									class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
+										selectedLicenseForDetails.status
+									)}"
+								>
+									{selectedLicenseForDetails.status}
+								</span>
+							</div>
+							<div>
+								<p class="text-xs text-gray-500 uppercase font-bold">Fecha</p>
+								<p class="text-gray-900 dark:text-white font-medium">
+									{formatDate(selectedLicenseForDetails.date)}
+								</p>
+							</div>
+							<div>
+								<p class="text-xs text-gray-500 uppercase font-bold">Duración</p>
+								<p class="text-gray-900 dark:text-white font-medium">
+									{selectedLicenseForDetails.duration}
+								</p>
+							</div>
+							<div class="col-span-2">
+								<p class="text-xs text-gray-500 uppercase font-bold">Motivo</p>
+								<p
+									class="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg mt-1 border border-gray-100 dark:border-gray-700 italic"
+								>
+									"{selectedLicenseForDetails.reason}"
+								</p>
+							</div>
+						</div>
+					</div>
+
+					{#if selectedLicenseForDetails.status === 'Pendiente'}
+						<div class="space-y-4 pt-4">
+							<h3 class="text-lg font-bold text-gray-900 dark:text-white">Acciones de Gestión</h3>
+							<div>
+								<label for="reject-comment" class="block text-sm text-gray-500 mb-1"
+									>Comentario / Observación (Opcional)</label
+								>
+								<textarea
+									id="reject-comment"
+									bind:value={rejectionComment}
+									placeholder="Escribe el motivo del rechazo o un comentario de aprobación..."
+									class="w-full px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500 outline-none h-24 resize-none"
+								></textarea>
+							</div>
+							<div class="flex gap-4">
+								<button
+									onclick={() =>
+										handleReject(selectedLicenseForDetails._id || selectedLicenseForDetails.id)}
+									disabled={loading}
+									class="flex-1 px-6 py-3 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded-xl font-bold hover:bg-rose-200 dark:hover:bg-rose-900/50 transition-colors border border-rose-200 dark:border-rose-800 disabled:opacity-50"
+								>
+									✖ Rechazar
+								</button>
+								<button
+									onclick={() =>
+										handleApprove(selectedLicenseForDetails._id || selectedLicenseForDetails.id)}
+									disabled={loading}
+									class="flex-1 px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 shadow-lg shadow-emerald-200 dark:shadow-none hover:scale-105 transition-all disabled:opacity-50"
+								>
+									✔ Aprobar
+								</button>
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Adjunto -->
+				<div class="space-y-4">
+					<h3
+						class="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-2"
+					>
+						Comprobante / Documento
+					</h3>
+					<div
+						class="aspect-[3/4] bg-gray-100 dark:bg-gray-700 rounded-2xl border-2 border-dashed border-gray-300 dark:border-gray-600 overflow-hidden flex items-center justify-center relative group"
+					>
+						{#if selectedLicenseForDetails.attachment_url || selectedLicenseForDetails.adjunto || selectedLicenseForDetails.archivo_url}
+							{@const url =
+								selectedLicenseForDetails.attachment_url ||
+								selectedLicenseForDetails.adjunto ||
+								selectedLicenseForDetails.archivo_url}
+							{#if url.toLowerCase().endsWith('.pdf')}
+								<div class="text-center p-6">
+									<p class="text-5xl mb-4">📄</p>
+									<p class="text-sm text-gray-600 dark:text-gray-300 mb-4 font-medium">
+										Documento PDF Adjunto
+									</p>
+									<a
+										href={url}
+										target="_blank"
+										class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-block font-bold"
+									>
+										Abrir PDF
+									</a>
+								</div>
+							{:else}
+								<a
+									href={url}
+									target="_blank"
+									rel="noopener noreferrer"
+									class="block w-full h-full group-hover:scale-105 transition-transform"
+									title="Click para ampliar"
+								>
+									<img
+										src={url}
+										alt="Comprobante de licencia"
+										class="w-full h-full object-contain cursor-zoom-in"
+									/>
+								</a>
+								<div
+									class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+								>
+									<p
+										class="text-white font-bold px-4 py-2 bg-black/60 rounded-full backdrop-blur-sm"
+									>
+										Click para ampliar
+									</p>
+								</div>
+							{/if}
+						{:else}
+							<div class="text-center p-8">
+								<p class="text-6xl opacity-20 dark:opacity-40 mb-4">📷</p>
+								<p class="text-gray-400 dark:text-gray-500 font-medium italic">
+									No se adjuntó ningún comprobante para esta solicitud
+								</p>
+							</div>
+						{/if}
+					</div>
+					<p class="text-xs text-gray-500 text-center italic">
+						El sistema almacena automáticamente los justificativos enviados por los padres.
+					</p>
 				</div>
 			</div>
 		</div>

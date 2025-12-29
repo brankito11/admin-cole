@@ -50,6 +50,20 @@ class LicenciaService {
 	}
 
 	/**
+	 * Crear una nueva solicitud de licencia con archivo adjunto
+	 * @param formData FormData con los campos de la licencia y el archivo
+	 */
+	async createLicenciaWithFile(formData: FormData): Promise<Licencia> {
+		try {
+			// apiCole automatically handles multipart/form-data when passing FormData
+			return await apiCole.post<Licencia>('/licencias/with-file', formData);
+		} catch (error) {
+			console.error('Error al crear licencia con archivo:', error);
+			throw error;
+		}
+	}
+
+	/**
 	 * Obtener licencias de un hijo específico
 	 * @param hijoId ID del hijo
 	 */
@@ -82,6 +96,29 @@ class LicenciaService {
 			await apiCole.delete(`/licencias/${id}`);
 		} catch (error) {
 			console.error('Error al eliminar licencia:', error);
+			throw error;
+		}
+	}
+	/**
+	 * Aprobar una licencia
+	 */
+	async aprobar(id: string | number, comentario: string = ''): Promise<Licencia> {
+		try {
+			return await apiCole.post<Licencia>(`/licencias/${id}/aprobar`, { comentario });
+		} catch (error) {
+			console.error('Error al aprobar licencia:', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Rechazar una licencia
+	 */
+	async rechazar(id: string | number, comentario: string = ''): Promise<Licencia> {
+		try {
+			return await apiCole.post<Licencia>(`/licencias/${id}/rechazar`, { comentario });
+		} catch (error) {
+			console.error('Error al rechazar licencia:', error);
 			throw error;
 		}
 	}

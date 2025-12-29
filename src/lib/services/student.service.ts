@@ -22,6 +22,8 @@ class StudentService {
 		// Map parameters to backend expected names
 		params.append('page', String(page));
 		params.append('per_page', String(per_page));
+		params.append('limit', String(per_page));
+		params.append('skip', String((page - 1) * per_page));
 
 		if (q) params.append('q', q);
 		if (nivel) params.append('nivel', nivel);

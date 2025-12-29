@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { auth } from '$lib/stores/auth';
 	import { studentService } from '$lib/services/student.service';
+	import { hijoService, padreService } from '$lib/services';
 	import type { Hijo } from '$lib/interfaces';
 
 	let hijos: any[] = $state([]);
@@ -14,25 +15,32 @@
 
 	onMount(async () => {
 		if ($auth?._id) {
-			try {
-				loading = true;
-				hijos = await studentService.getChildrenByParent($auth._id);
-
-				if (hijos.length > 0) {
-					// Select by URL ID or default to first
-					if (studentIdFromUrl) {
-						selectedHijo = hijos.find((h) => (h._id || h.id) === studentIdFromUrl) || hijos[0];
-					} else {
-						selectedHijo = hijos[0];
-					}
-				}
-			} catch (error) {
-				console.error('Error loading hijos for boletin:', error);
-			} finally {
-				loading = false;
-			}
+			loadHijos();
 		}
 	});
+
+	async function loadHijos() {
+		if (!$auth?._id) return;
+		try {
+			loading = true;
+			const response = await studentService.getChildrenByParent($auth._id);
+			hijos = Array.isArray(response) ? response : (response as any).data || [];
+			console.log('👶 Total de hijos/estudiantes:', hijos.length);
+
+			if (hijos.length > 0) {
+				// Select by URL ID or default to first
+				if (studentIdFromUrl) {
+					selectedHijo = hijos.find((h) => (h._id || h.id) === studentIdFromUrl) || hijos[0];
+				} else {
+					selectedHijo = hijos[0];
+				}
+			}
+		} catch (error) {
+			console.error('Error loading hijos for boletin:', error);
+		} finally {
+			loading = false;
+		}
+	}
 
 	function getStatusStyle(status: string) {
 		if (status === 'Aprobado') return 'bg-green-100 text-green-800 border-green-200';

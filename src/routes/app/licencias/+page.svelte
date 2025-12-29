@@ -1,42 +1,92 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fade, fly, slide } from 'svelte/transition';
-	import { hijoService, licenciaService } from '$lib/services';
+	import { hijoService, licenciaService, padreService } from '$lib/services';
+	import { studentService } from '$lib/services/student.service';
 	import type { Hijo, Licencia } from '$lib/interfaces';
+	import { auth } from '$lib/stores/auth';
 
-	let licencias: Licencia[] = [];
-	let hijos: Hijo[] = [];
-	let loading = true;
-	let loadingLicencias = true;
-	let showModal = false;
-	let modalStep: 'select' | 'form' = 'select';
-	let selectedHijo: Hijo | null = null;
-	let submitting = false;
+	let licencias = $state<any[]>([]);
+	let hijos = $state<any[]>([]);
+	let loading = $state(true);
+	let loadingLicencias = $state(true);
+	let showModal = $state(false);
+	let modalStep = $state<'select' | 'form'>('select');
+	let selectedHijo = $state<any | null>(null);
+	let submitting = $state(false);
 
 	// Formulario de licencia
-	let tipoLicencia = '';
-	let fechaInicio = '';
-	let fechaFin = '';
-	let motivo = '';
+	let tipoLicencia = $state('');
+	let fechaInicio = $state('');
+	let fechaFin = $state('');
+	let motivo = $state('');
+	let selectedFile = $state<File | null>(null);
+	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 
-	const tiposLicencia = [
-		'Permiso Médico',
-		'Permiso Familiar',
-		'Permiso Personal',
-		'Viaje',
-		'Otro'
-	];
+	const tiposLicencia = ['Permiso Médico', 'Permiso Familiar', 'Permiso Personal'];
 
-	onMount(async () => {
-		await Promise.all([loadHijos(), loadLicencias()]);
+	onMount(() => {
+		if ($auth?._id) {
+			loadHijos();
+			loadLicencias();
+		}
+	});
+
+	// Reactivo: cargar datos cuando el ID del padre esté disponible
+	$effect(() => {
+		if ($auth?._id && hijos.length === 0 && loading) {
+			loadHijos();
+			loadLicencias();
+		}
 	});
 
 	async function loadHijos() {
+		if (!$auth?._id) return;
+
 		try {
 			loading = true;
-			hijos = await hijoService.getHijos();
+			console.log('👤 Solicitando hijos de $auth._id:', $auth._id);
+			const response = await studentService.getChildrenByParent($auth._id);
+			const rawHijos = Array.isArray(response) ? response : (response as any).data || [];
+
+			// Normalizar datos para evitar [object Object] en Grado y Curso
+			hijos = rawHijos.map((student: any) => {
+				let gradoDisplay = '';
+				if (student.grado) {
+					gradoDisplay =
+						typeof student.grado === 'object'
+							? student.grado.nombre || student.grado.name || ''
+							: student.grado;
+				}
+
+				// Si no hay grado, intentar con courseName
+				if (!gradoDisplay && student.courseName) {
+					gradoDisplay = student.courseName;
+				}
+
+				// Normalizar curso para evitar [object Object]
+				let cursoDisplay = '';
+				if (student.curso) {
+					cursoDisplay =
+						typeof student.curso === 'object'
+							? student.curso.nombre || student.curso.name || student.curso.paralelo || ''
+							: student.curso;
+				} else if (student.courseSection) {
+					cursoDisplay = student.courseSection;
+				}
+
+				return {
+					...student,
+					nombre: student.nombre || student.nombres || '',
+					apellido: student.apellido || student.apellidos || '',
+					grado: gradoDisplay || '', // Evitamos poner "Sin Grado" aquí para que el modal use el fallback
+					curso: cursoDisplay
+				};
+			});
+
+			console.log('👶 Total de hijos procesados:', hijos.length);
 		} catch (error) {
-			console.error('Error al cargar hijos:', error);
+			console.error('❌ Error al cargar hijos:', error);
 			hijos = [];
 		} finally {
 			loading = false;
@@ -46,7 +96,8 @@
 	async function loadLicencias() {
 		try {
 			loadingLicencias = true;
-			licencias = await licenciaService.getLicencias();
+			const response = await licenciaService.getLicencias();
+			licencias = Array.isArray(response) ? response : (response as any).data || [];
 		} catch (error) {
 			console.error('Error al cargar licencias:', error);
 			licencias = [];
@@ -56,8 +107,14 @@
 	}
 
 	function openModal() {
+		if (loading) {
+			alert('Todavía se están cargando los datos de tus hijos. Por favor espera un momento...');
+			return;
+		}
 		if (hijos.length === 0) {
-			alert('Debes agregar al menos un hijo en Configuración antes de solicitar una licencia.');
+			alert(
+				'No se encontraron hijos registrados para tu cuenta. Si crees que esto es un error, por favor contacta a la administración.'
+			);
 			return;
 		}
 		modalStep = 'select';
@@ -86,28 +143,83 @@
 		selectedHijo = null;
 	}
 
-	async function handleSubmit() {
-		if (!selectedHijo) return;
+	async function handleSubmit(e: Event) {
+		e.preventDefault();
+		if (!selectedHijo || submitting) return;
 
 		try {
 			submitting = true;
-			await licenciaService.createLicencia({
-				hijo_id: selectedHijo._id!,
-				tipo: tipoLicencia,
-				fecha_inicio: fechaInicio,
-				fecha_fin: fechaFin,
-				motivo
-			});
+			const studentId = selectedHijo._id || selectedHijo.id;
 
-			alert('Solicitud de licencia enviada correctamente');
+			// Mapear tipos a los valores que espera el backend (enums en mayúsculas)
+			const tipoMap: Record<string, string> = {
+				'Permiso Médico': 'MEDICO',
+				'Permiso Familiar': 'FAMILIAR',
+				'Permiso Personal': 'PERSONAL'
+			};
+			const tipoBackend = tipoMap[tipoLicencia] || tipoLicencia.toUpperCase();
+
+			if (selectedFile) {
+				const formData = new FormData();
+				// Mandamos ambos por compatibilidad
+				formData.append('hijo_id', studentId);
+				formData.append('estudiante_id', studentId);
+				formData.append('padre_id', $auth._id);
+
+				formData.append('tipo', tipoBackend);
+				formData.append('tipo_permiso', tipoBackend);
+				formData.append('fecha_inicio', fechaInicio);
+				formData.append('fecha_fin', fechaFin);
+				formData.append('motivo', motivo || '');
+				formData.append('duracion', calculateDuration());
+				formData.append('file', selectedFile);
+
+				await licenciaService.createLicenciaWithFile(formData);
+			} else {
+				// Fallback a JSON si no hay archivo
+				const payload = {
+					hijo_id: studentId,
+					estudiante_id: studentId,
+					padre_id: $auth._id,
+					tipo: tipoBackend,
+					tipo_permiso: tipoBackend,
+					fecha_inicio: fechaInicio,
+					fecha_fin: fechaFin,
+					motivo: motivo || '',
+					duracion: calculateDuration()
+				};
+				await licenciaService.createLicencia(payload as any);
+			}
+
+			alert('Solicitud enviada exitosamente');
 			closeModal();
 			await loadLicencias();
-		} catch (error) {
-			console.error('Error al enviar solicitud:', error);
-			alert('Error al enviar la solicitud. Por favor intenta de nuevo.');
+		} catch (error: any) {
+			console.error('Error al enviar licencia:', error);
+			const errorMsg = error?.body?.message || error?.message || 'Error desconocido';
+
+			if (errorMsg.includes('Cloudinary')) {
+				alert(
+					`Error de Servidor: El sistema no puede procesar imágenes en este momento (Cloudinary no configurado). Intenta enviar la solicitud SIN adjuntar una foto.`
+				);
+			} else {
+				alert(`Hubo un error al enviar la solicitud: ${errorMsg}`);
+			}
 		} finally {
 			submitting = false;
 		}
+	}
+
+	function handleFileChange(e: Event) {
+		const target = e.target as HTMLInputElement;
+		if (target.files && target.files.length > 0) {
+			selectedFile = target.files[0];
+		}
+	}
+
+	function removeFile() {
+		selectedFile = null;
+		if (fileInput) fileInput.value = '';
 	}
 
 	function getStatusStyle(status: string) {
@@ -129,8 +241,11 @@
 	}
 
 	function getHijoNombre(hijoId: string): string {
-		const hijo = hijos.find((h) => h._id === hijoId);
-		return hijo ? `${hijo.nombre} ${hijo.apellido}` : 'Desconocido';
+		const hijo = hijos.find((h) => (h._id || h.id) === hijoId);
+		if (!hijo) return 'Desconocido';
+		const nombre = hijo.nombre || hijo.nombres || '';
+		const apellido = hijo.apellido || hijo.apellidos || '';
+		return `${nombre} ${apellido}`.trim() || 'Estudiante';
 	}
 
 	function formatDate(dateString: string): string {
@@ -150,10 +265,12 @@
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
 			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Mis Licencias</h1>
-			<p class="text-gray-600 dark:text-gray-400 mt-1">Consulta y solicita permisos para tus hijos</p>
+			<p class="text-gray-600 dark:text-gray-400 mt-1">
+				Consulta y solicita permisos para tus hijos
+			</p>
 		</div>
 		<button
-			on:click={openModal}
+			onclick={openModal}
 			class="px-6 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
@@ -161,32 +278,40 @@
 		</button>
 	</div>
 
-	<div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+	<div
+		class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+	>
 		<div class="overflow-x-auto">
 			<table class="w-full">
-				<thead class="bg-gray-50 dark:bg-gray-700">
+				<thead class="bg-gray-50 dark:bg-gray-700/50">
 					<tr>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estudiante</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Tipo</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Fecha</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Duración</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Motivo</th
 						>
-						<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+						<th
+							class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
 							>Estado</th
 						>
 					</tr>
 				</thead>
-				<tbody class="divide-y divide-gray-200">
+				<tbody class="divide-y divide-gray-200 dark:divide-gray-700">
 					{#if loadingLicencias}
 						<tr>
 							<td colspan="6" class="px-6 py-12 text-center">
@@ -211,8 +336,12 @@
 									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm font-semibold text-gray-900 dark:text-white">{licencia.tipo}</div>
-									<div class="text-xs text-gray-500 dark:text-gray-400">ID: #{licencia._id?.slice(-6)}</div>
+									<div class="text-sm font-semibold text-gray-900 dark:text-white">
+										{licencia.tipo}
+									</div>
+									<div class="text-xs text-gray-500 dark:text-gray-400">
+										ID: #{licencia._id?.slice(-6)}
+									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
 									{formatDate(licencia.fecha_inicio)}
@@ -221,7 +350,9 @@
 									{calculateDurationFromDates(licencia.fecha_inicio, licencia.fecha_fin)}
 								</td>
 								<td class="px-6 py-4">
-									<div class="text-sm text-gray-600 dark:text-gray-300 max-w-xs">{licencia.motivo}</div>
+									<div class="text-sm text-gray-600 dark:text-gray-300 max-w-xs">
+										{licencia.motivo}
+									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<span
@@ -244,19 +375,19 @@
 <!-- Modal de Solicitud de Licencia -->
 {#if showModal}
 	<div
-		class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+		class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
 		transition:fade
-		on:click={closeModal}
-		on:keydown={(e) => e.key === 'Escape' && closeModal()}
+		onclick={closeModal}
+		onkeydown={(e) => e.key === 'Escape' && closeModal()}
 		role="button"
 		tabindex="0"
 		aria-label="Cerrar modal"
 	>
 		<div
-			class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+			class="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/10"
 			transition:fly={{ y: 20, duration: 300 }}
-			on:click|stopPropagation
-			on:keydown|stopPropagation
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
 			role="dialog"
 			tabindex="-1"
 		>
@@ -266,8 +397,8 @@
 				</h2>
 				{#if modalStep === 'form' && selectedHijo}
 					<p class="text-white/80 mt-1">
-						Para: {selectedHijo.nombre}
-						{selectedHijo.apellido}
+						Para: {selectedHijo.nombre || selectedHijo.nombres}
+						{selectedHijo.apellido || selectedHijo.apellidos}
 					</p>
 				{/if}
 			</div>
@@ -275,29 +406,31 @@
 			{#if modalStep === 'select'}
 				<!-- Paso 1: Selección de Hijo -->
 				<div class="p-6">
-					<p class="text-gray-600 mb-6">Selecciona el hijo para el cual deseas solicitar la licencia</p>
+					<p class="text-gray-600 mb-6">
+						Selecciona el hijo para el cual deseas solicitar la licencia
+					</p>
 
 					{#if loading}
 						<div class="flex items-center justify-center py-12">
-							<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+							<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
 						</div>
 					{:else}
 						<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-							{#each hijos as hijo (hijo._id)}
+							{#each hijos as hijo (hijo._id || hijo.id)}
 								<button
-									on:click={() => selectHijo(hijo)}
-									class="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-xl border-2 border-transparent hover:border-indigo-500 hover:shadow-lg transition-all duration-200 text-left group"
+									onclick={() => selectHijo(hijo)}
+									class="bg-gray-50 dark:bg-gray-800 p-6 rounded-xl border-2 border-transparent hover:border-cyan-500 hover:shadow-lg transition-all duration-200 text-left group"
 								>
 									<div
-										class="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto group-hover:scale-110 transition-transform"
+										class="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center text-white text-2xl font-bold mb-4 mx-auto group-hover:scale-110 transition-transform shadow-md"
 									>
-										{getInitials(hijo.nombre, hijo.apellido)}
+										{getInitials(hijo.nombre || hijo.nombres, hijo.apellido || hijo.apellidos)}
 									</div>
-									<h3 class="text-lg font-bold text-gray-900 text-center mb-1">
-										{hijo.nombre}
-										{hijo.apellido}
+									<h3 class="text-lg font-bold text-gray-900 dark:text-white text-center mb-1">
+										{hijo.nombre || hijo.nombres}
+										{hijo.apellido || hijo.apellidos}
 									</h3>
-									<p class="text-sm text-gray-600 text-center">
+									<p class="text-sm text-gray-600 dark:text-gray-400 text-center">
 										{hijo.grado}
 										{hijo.curso || ''}
 									</p>
@@ -308,27 +441,40 @@
 				</div>
 			{:else if modalStep === 'form' && selectedHijo}
 				<!-- Paso 2: Formulario de Licencia -->
-				<form on:submit|preventDefault={handleSubmit} class="p-6 space-y-4">
+				<form onsubmit={handleSubmit} class="p-6 space-y-4">
 					<!-- Datos del Hijo (readonly) -->
-					<div class="bg-gray-50 p-4 rounded-xl">
-						<h4 class="font-semibold text-gray-900 mb-3">Datos del Estudiante</h4>
+					<div
+						class="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700"
+					>
+						<h4 class="font-semibold text-gray-900 dark:text-white mb-3">Datos del Estudiante</h4>
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
+								<label
+									for="full_name"
+									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+									>Nombre Completo</label
+								>
 								<input
+									id="full_name"
 									type="text"
-									value="{selectedHijo.nombre} {selectedHijo.apellido}"
+									value="{selectedHijo.nombre || selectedHijo.nombres} {selectedHijo.apellido ||
+										selectedHijo.apellidos}"
 									readonly
-									class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-700"
+									class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
 								/>
 							</div>
 							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-1">Grado</label>
+								<label
+									for="grade_info"
+									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+									>Grado</label
+								>
 								<input
+									id="grade_info"
 									type="text"
 									value="{selectedHijo.grado} {selectedHijo.curso || ''}"
 									readonly
-									class="w-full px-4 py-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-700"
+									class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
 								/>
 							</div>
 						</div>
@@ -336,14 +482,19 @@
 
 					<!-- Datos de la Licencia -->
 					<div class="space-y-4">
-						<h4 class="font-semibold text-gray-900">Datos de la Licencia</h4>
+						<h4 class="font-semibold text-gray-900 dark:text-white">Datos de la Licencia</h4>
 
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Licencia *</label>
+							<label
+								for="tipo_licencia"
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+								>Tipo de Licencia *</label
+							>
 							<select
+								id="tipo_licencia"
 								bind:value={tipoLicencia}
 								required
-								class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+								class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none"
 							>
 								<option value="">Seleccionar tipo</option>
 								{#each tiposLicencia as tipo}
@@ -354,31 +505,43 @@
 
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio *</label>
+								<label
+									for="fecha_inicio"
+									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+									>Fecha Inicio *</label
+								>
 								<input
+									id="fecha_inicio"
 									type="date"
 									bind:value={fechaInicio}
 									required
 									min={new Date().toISOString().split('T')[0]}
-									class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+									class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none"
 								/>
 							</div>
 
 							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-1">Fecha Fin *</label>
+								<label
+									for="fecha_fin"
+									class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+									>Fecha Fin *</label
+								>
 								<input
+									id="fecha_fin"
 									type="date"
 									bind:value={fechaFin}
 									required
 									min={fechaInicio || new Date().toISOString().split('T')[0]}
-									class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none"
+									class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none"
 								/>
 							</div>
 						</div>
 
 						{#if fechaInicio && fechaFin}
-							<div class="bg-blue-50 p-3 rounded-lg">
-								<p class="text-sm text-blue-800">
+							<div
+								class="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg border border-blue-100 dark:border-blue-800"
+							>
+								<p class="text-sm text-blue-800 dark:text-blue-300">
 									<strong>Duración:</strong>
 									{calculateDuration()}
 								</p>
@@ -386,39 +549,95 @@
 						{/if}
 
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">Motivo *</label>
+							<label
+								for="motivo_licencia"
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+								>Motivo *</label
+							>
 							<textarea
+								id="motivo_licencia"
 								bind:value={motivo}
 								required
-								rows="4"
 								minlength="10"
-								class="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none resize-none"
 								placeholder="Describe el motivo de la licencia (mínimo 10 caracteres)"
+								class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all outline-none h-32 resize-none"
 							></textarea>
-							<p class="text-xs text-gray-500 mt-1">{motivo.length} caracteres</p>
+							<div class="text-right text-xs text-gray-500 mt-1">
+								{motivo.length} caracteres
+							</div>
 						</div>
-					</div>
 
-					<div class="flex gap-3 pt-4">
-						<button
-							type="button"
-							on:click={backToSelect}
-							class="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-colors"
-							disabled={submitting}
-						>
-							← Volver
-						</button>
-						<button
-							type="submit"
-							disabled={submitting}
-							class="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							{#if submitting}
-								<span class="inline-block animate-spin mr-2">↻</span> Enviando...
-							{:else}
-								Enviar Solicitud
-							{/if}
-						</button>
+						<!-- Subida de Archivo -->
+						<div>
+							<label
+								for="comprobante"
+								class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+								>Adjuntar Comprobante / Foto (Opcional)</label
+							>
+							<div class="flex items-center gap-4">
+								<input
+									id="comprobante"
+									type="file"
+									accept="image/*,.pdf"
+									bind:this={fileInput}
+									onchange={handleFileChange}
+									class="hidden"
+								/>
+								<button
+									type="button"
+									onclick={() => fileInput?.click()}
+									class="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors border border-gray-300 dark:border-gray-600"
+								>
+									<span class="text-xl">📷</span>
+									{selectedFile ? 'Cambiar Foto' : 'Subir Foto'}
+								</button>
+
+								{#if selectedFile}
+									<div
+										class="flex items-center gap-2 bg-cyan-50 dark:bg-cyan-900/30 px-3 py-1.5 rounded-lg border border-cyan-200 dark:border-cyan-800 animate-fade-in"
+									>
+										<span class="text-xs text-cyan-700 dark:text-cyan-300 truncate max-w-[150px]">
+											{selectedFile.name}
+										</span>
+										<button
+											type="button"
+											onclick={removeFile}
+											class="text-red-500 hover:text-red-700 text-lg"
+											title="Eliminar archivo"
+										>
+											×
+										</button>
+									</div>
+								{/if}
+							</div>
+							<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+								Puedes adjuntar una foto del justificativo médico.
+							</p>
+						</div>
+
+						<div class="flex gap-4 pt-4">
+							<button
+								type="button"
+								onclick={backToSelect}
+								class="flex-1 px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+							>
+								← Volver
+							</button>
+							<button
+								type="submit"
+								disabled={submitting}
+								class="flex-[2] px-6 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+							>
+								{#if submitting}
+									<div
+										class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"
+									></div>
+									Enviando...
+								{:else}
+									Enviar Solicitud
+								{/if}
+							</button>
+						</div>
 					</div>
 				</form>
 			{/if}

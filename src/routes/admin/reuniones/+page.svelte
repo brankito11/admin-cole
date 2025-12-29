@@ -34,7 +34,10 @@
 		tema: '',
 		fecha: '',
 		hora_inicio: '',
-		hora_conclusion: ''
+		hora_conclusion: '',
+		alcance: 'todos', // 'todos' | 'uno' | 'multiples'
+		curso_id: '',
+		cursos_ids: [] as string[]
 	});
 
 	onMount(async () => {
@@ -131,7 +134,10 @@
 			tema: '',
 			fecha: '',
 			hora_inicio: '',
-			hora_conclusion: ''
+			hora_conclusion: '',
+			alcance: 'todos',
+			curso_id: '',
+			cursos_ids: []
 		};
 		showModal = true;
 	}
@@ -142,13 +148,16 @@
 		formData = {
 			nombre_reunion: reunion.titulo,
 			tema: reunion.descripcion,
-			fecha: reunion.fecha_hora.split('T')[0], // Extract date only
+			fecha: reunion.fecha_hora.split('T')[0],
 			hora_inicio: new Date(reunion.fecha_hora).toLocaleTimeString('es-ES', {
-				hour: '2d',
-				minute: '2d',
+				hour: '2-digit',
+				minute: '2-digit',
 				hour12: false
 			}),
-			hora_conclusion: '' // No separate field in backend now
+			hora_conclusion: '',
+			alcance: (reunion as any).alcance || 'todos',
+			curso_id: (reunion as any).curso_id || '',
+			cursos_ids: (reunion as any).cursos_ids || []
 		};
 		showModal = true;
 	}
@@ -156,6 +165,14 @@
 	function closeModal() {
 		showModal = false;
 		selectedReunion = null;
+	}
+
+	function handleCourseToggle(courseId: string, checked: boolean) {
+		if (checked) {
+			formData.cursos_ids = [...formData.cursos_ids, courseId];
+		} else {
+			formData.cursos_ids = formData.cursos_ids.filter((id) => id !== courseId);
+		}
 	}
 
 	async function handleSubmit() {
@@ -189,11 +206,22 @@
 			}
 
 			// Alinear con el backend: titulo, descripcion, fecha_hora
-			const dataToSend = {
+			const dataToSend: any = {
 				titulo: formData.nombre_reunion,
 				descripcion: formData.tema,
-				fecha_hora: isoFecha
+				fecha_hora: isoFecha,
+				alcance: formData.alcance
 			};
+
+			// Agregar curso_id si es un curso específico
+			if (formData.alcance === 'uno' && formData.curso_id) {
+				dataToSend.curso_id = formData.curso_id;
+			}
+
+			// Agregar cursos_ids si son múltiples cursos
+			if (formData.alcance === 'multiples' && formData.cursos_ids.length > 0) {
+				dataToSend.cursos_ids = formData.cursos_ids;
+			}
 
 			console.log('📤 Enviando datos de reunión:', dataToSend);
 
@@ -638,6 +666,76 @@
 							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 						/>
 					</div>
+
+					<!-- Selector de Alcance -->
+					<div class="col-span-2">
+						<label for="alcance" class="block text-sm font-semibold text-gray-700 mb-2">
+							Dirigido a
+						</label>
+						<select
+							id="alcance"
+							bind:value={formData.alcance}
+							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+						>
+							<option value="todos">📚 Todos los Cursos</option>
+							<option value="uno">📖 Un Curso Específico</option>
+							<option value="multiples">📑 Múltiples Cursos</option>
+						</select>
+					</div>
+
+					<!-- Selector de Un Curso -->
+					{#if formData.alcance === 'uno'}
+						<div class="col-span-2">
+							<label for="curso_id" class="block text-sm font-semibold text-gray-700 mb-2">
+								Seleccionar Curso
+							</label>
+							<select
+								id="curso_id"
+								bind:value={formData.curso_id}
+								required
+								class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							>
+								<option value="">Seleccione un curso...</option>
+								{#each courses as course}
+									<option value={course._id}>
+										{course.nivel} - {course.nombre}
+										{course.paralelo} ({course.turno})
+									</option>
+								{/each}
+							</select>
+						</div>
+					{/if}
+
+					<!-- Selector de Múltiples Cursos -->
+					{#if formData.alcance === 'multiples'}
+						<div class="col-span-2">
+							<p class="block text-sm font-semibold text-gray-700 mb-2">
+								Seleccionar Cursos ({formData.cursos_ids.length} seleccionados)
+							</p>
+							<div
+								class="max-h-48 overflow-y-auto border border-gray-300 rounded-xl p-3 bg-gray-50 space-y-1"
+							>
+								{#each courses as course}
+									<label
+										class="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors"
+									>
+										<input
+											type="checkbox"
+											value={course._id}
+											checked={formData.cursos_ids.includes(course._id)}
+											onchange={(e) =>
+												handleCourseToggle(course._id, (e.target as HTMLInputElement).checked)}
+											class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+										/>
+										<span class="text-sm text-gray-700">
+											{course.nivel} - {course.nombre}
+											{course.paralelo} ({course.turno})
+										</span>
+									</label>
+								{/each}
+							</div>
+						</div>
+					{/if}
 				</div>
 				<div class="flex justify-end gap-4 mt-6">
 					<button
