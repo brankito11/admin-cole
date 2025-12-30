@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { reunionService, cursoService } from '$lib/services';
-	import { AUTH_TOKEN_KEY } from '$lib/constants';
+	import { AUTH_TOKEN_KEY } from '$lib/constants/keys.contant';
+	import { browser } from '$app/environment';
 	import Pagination from '$lib/components/pagination.svelte';
 	import type { Reunion, ReunionCreate, ReunionUpdate } from '$lib/interfaces';
 	import CourseFilter from '$lib/components/CourseFilter.svelte';
@@ -282,30 +283,45 @@
 
 	const programadas = $derived(
 		reuniones.filter((r) => {
-			const reunionDate = new Date(r.fecha_hora);
-			const today = new Date();
-			today.setHours(0, 0, 0, 0);
-			reunionDate.setHours(0, 0, 0, 0);
-			return reunionDate >= today;
+			if (!r.fecha_hora) return false;
+			try {
+				const reunionDate = new Date(r.fecha_hora);
+				const today = new Date();
+				today.setHours(0, 0, 0, 0);
+				reunionDate.setHours(0, 0, 0, 0);
+				return reunionDate >= today;
+			} catch (e) {
+				return false;
+			}
 		}).length
 	);
 
 	const completadas = $derived(
 		reuniones.filter((r) => {
-			const reunionDate = new Date(r.fecha_hora);
-			const today = new Date();
-			today.setHours(0, 0, 0, 0);
-			reunionDate.setHours(0, 0, 0, 0);
-			return reunionDate < today;
+			if (!r.fecha_hora) return false;
+			try {
+				const reunionDate = new Date(r.fecha_hora);
+				const today = new Date();
+				today.setHours(0, 0, 0, 0);
+				reunionDate.setHours(0, 0, 0, 0);
+				return reunionDate < today;
+			} catch (e) {
+				return false;
+			}
 		}).length
 	);
 
 	function getStatusForReunion(reunion: Reunion): string {
-		const reunionDate = new Date(reunion.fecha_hora);
-		const today = new Date();
-		today.setHours(0, 0, 0, 0);
-		reunionDate.setHours(0, 0, 0, 0);
-		return reunionDate < today ? 'Completada' : 'Programada';
+		if (!reunion.fecha_hora) return 'Desconocido';
+		try {
+			const reunionDate = new Date(reunion.fecha_hora);
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			reunionDate.setHours(0, 0, 0, 0);
+			return reunionDate < today ? 'Completada' : 'Programada';
+		} catch (e) {
+			return 'Error';
+		}
 	}
 
 	function getStatusStyle(status: string) {
@@ -490,10 +506,10 @@
 							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
 								<td class="px-6 py-4">
 									<div class="text-sm font-semibold text-gray-900 dark:text-white">
-										{reunion.titulo}
+										{reunion.titulo || 'Sin título'}
 									</div>
 									<div class="text-xs text-gray-500 dark:text-gray-400">
-										ID: {reunion._id.slice(-8)}
+										ID: {(reunion._id || reunion.id || '').toString().slice(-8)}
 									</div>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
@@ -504,15 +520,19 @@
 									</span>
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm text-gray-900 dark:text-white">
-										{new Date(reunion.fecha_hora).toLocaleDateString('es-ES')}
-									</div>
-									<div class="text-xs text-gray-500 dark:text-gray-400">
-										{new Date(reunion.fecha_hora).toLocaleTimeString('es-ES', {
-											hour: '2-digit',
-											minute: '2-digit'
-										})}
-									</div>
+									{#if reunion.fecha_hora}
+										<div class="text-sm text-gray-900 dark:text-white">
+											{new Date(reunion.fecha_hora).toLocaleDateString('es-ES')}
+										</div>
+										<div class="text-xs text-gray-500 dark:text-gray-400">
+											{new Date(reunion.fecha_hora).toLocaleTimeString('es-ES', {
+												hour: '2-digit',
+												minute: '2-digit'
+											})}
+										</div>
+									{:else}
+										<span class="text-xs text-gray-400 italic">Fecha no definida</span>
+									{/if}
 								</td>
 								<td class="px-6 py-4 whitespace-nowrap">
 									<span
@@ -576,12 +596,12 @@
 	>
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
-			class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up"
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up border border-transparent dark:border-gray-700"
 			role="document"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 		>
-			<h2 class="text-2xl font-bold text-gray-900 mb-6">
+			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
 				{modalMode === 'create' ? '➕ Programar Nuevo Evento' : '✏️ Editar Evento'}
 			</h2>
 
@@ -607,7 +627,10 @@
 			>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="col-span-2">
-						<label for="titulo" class="block text-sm font-semibold text-gray-700 mb-2">
+						<label
+							for="titulo"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+						>
 							Título de la Reunión
 						</label>
 						<input
@@ -616,11 +639,13 @@
 							bind:value={formData.nombre_reunion}
 							placeholder="Ej: Entrega de Boletines"
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
 						/>
 					</div>
 					<div class="col-span-2">
-						<label for="descripcion" class="block text-sm font-semibold text-gray-700 mb-2"
+						<label
+							for="descripcion"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
 							>Descripción / Tema</label
 						>
 						<input
@@ -629,21 +654,27 @@
 							bind:value={formData.tema}
 							placeholder="Ej: Revisión de tercer bimestre"
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
 						/>
 					</div>
 					<div>
-						<label for="fecha" class="block text-sm font-semibold text-gray-700 mb-2">Fecha</label>
+						<label
+							for="fecha"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Fecha</label
+						>
 						<input
 							type="date"
 							id="fecha"
 							bind:value={formData.fecha}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none color-scheme-light dark:color-scheme-dark"
 						/>
 					</div>
 					<div>
-						<label for="hora_inicio" class="block text-sm font-semibold text-gray-700 mb-2">
+						<label
+							for="hora_inicio"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+						>
 							Hora de Inicio
 						</label>
 						<input
@@ -651,11 +682,14 @@
 							id="hora_inicio"
 							bind:value={formData.hora_inicio}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none color-scheme-light dark:color-scheme-dark"
 						/>
 					</div>
 					<div class="col-span-2">
-						<label for="hora_conclusion" class="block text-sm font-semibold text-gray-700 mb-2">
+						<label
+							for="hora_conclusion"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+						>
 							Hora de Conclusión
 						</label>
 						<input
@@ -663,19 +697,22 @@
 							id="hora_conclusion"
 							bind:value={formData.hora_conclusion}
 							required
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none color-scheme-light dark:color-scheme-dark"
 						/>
 					</div>
 
 					<!-- Selector de Alcance -->
 					<div class="col-span-2">
-						<label for="alcance" class="block text-sm font-semibold text-gray-700 mb-2">
+						<label
+							for="alcance"
+							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+						>
 							Dirigido a
 						</label>
 						<select
 							id="alcance"
 							bind:value={formData.alcance}
-							class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
 						>
 							<option value="todos">📚 Todos los Cursos</option>
 							<option value="uno">📖 Un Curso Específico</option>
@@ -686,14 +723,17 @@
 					<!-- Selector de Un Curso -->
 					{#if formData.alcance === 'uno'}
 						<div class="col-span-2">
-							<label for="curso_id" class="block text-sm font-semibold text-gray-700 mb-2">
+							<label
+								for="curso_id"
+								class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							>
 								Seleccionar Curso
 							</label>
 							<select
 								id="curso_id"
 								bind:value={formData.curso_id}
 								required
-								class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+								class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
 							>
 								<option value="">Seleccione un curso...</option>
 								{#each courses as course}
@@ -709,15 +749,15 @@
 					<!-- Selector de Múltiples Cursos -->
 					{#if formData.alcance === 'multiples'}
 						<div class="col-span-2">
-							<p class="block text-sm font-semibold text-gray-700 mb-2">
+							<p class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
 								Seleccionar Cursos ({formData.cursos_ids.length} seleccionados)
 							</p>
 							<div
-								class="max-h-48 overflow-y-auto border border-gray-300 rounded-xl p-3 bg-gray-50 space-y-1"
+								class="max-h-48 overflow-y-auto border border-gray-300 dark:border-gray-700 rounded-xl p-3 bg-gray-50 dark:bg-gray-900/50 space-y-1"
 							>
 								{#each courses as course}
 									<label
-										class="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors"
+										class="flex items-center gap-2 p-2 hover:bg-white dark:hover:bg-gray-800 rounded-lg cursor-pointer transition-colors"
 									>
 										<input
 											type="checkbox"
@@ -725,9 +765,9 @@
 											checked={formData.cursos_ids.includes(course._id)}
 											onchange={(e) =>
 												handleCourseToggle(course._id, (e.target as HTMLInputElement).checked)}
-											class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+											class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
 										/>
-										<span class="text-sm text-gray-700">
+										<span class="text-sm text-gray-700 dark:text-gray-300">
 											{course.nivel} - {course.nombre}
 											{course.paralelo} ({course.turno})
 										</span>
@@ -741,14 +781,14 @@
 					<button
 						type="button"
 						onclick={closeModal}
-						class="px-6 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-semibold"
+						class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold transition-colors"
 					>
 						Cancelar
 					</button>
 					<button
 						type="submit"
 						disabled={loading}
-						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50"
+						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50 transition-all transform active:scale-95"
 					>
 						{loading ? 'Guardando...' : modalMode === 'create' ? 'Guardar' : 'Actualizar'}
 					</button>
@@ -773,15 +813,15 @@
 	>
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
-			class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up"
+			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-slide-up border border-transparent dark:border-gray-700"
 			role="document"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 		>
 			<div class="text-center">
 				<div class="text-6xl mb-4">⚠️</div>
-				<h2 class="text-2xl font-bold text-gray-900 mb-4">¿Eliminar Reunión?</h2>
-				<p class="text-gray-600 mb-6">
+				<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">¿Eliminar Reunión?</h2>
+				<p class="text-gray-600 dark:text-gray-400 mb-6">
 					¿Estás seguro de que deseas eliminar <strong>{reunionToDelete.titulo}</strong>? Esta
 					acción no se puede deshacer.
 				</p>
@@ -789,7 +829,7 @@
 				<div class="flex gap-3">
 					<button
 						onclick={cancelDelete}
-						class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+						class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-semibold"
 					>
 						Cancelar
 					</button>

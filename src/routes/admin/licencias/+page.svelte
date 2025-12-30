@@ -4,6 +4,7 @@
 	import { studentService } from '$lib/services/student.service';
 	import { userService } from '$lib/services/user.service';
 	import { cursoService } from '$lib/services/curso.service';
+	import { apiCole } from '$lib/config/apiCole.config';
 	import Pagination from '$lib/components/pagination.svelte';
 	import CourseFilter from '$lib/components/CourseFilter.svelte';
 	import type { User } from '$lib/interfaces';
@@ -45,6 +46,14 @@
 		return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700';
 	};
 
+	const getShiftName = (shift: string) => {
+		const s = shift?.toUpperCase() || '';
+		if (s === 'M') return 'Mañana';
+		if (s === 'T') return 'Tarde';
+		if (s === 'N') return 'Noche';
+		return shift || 'Mañana';
+	};
+
 	let showModal = $state(false);
 	let editingLicense: any = $state(null);
 	let loading = $state(false);
@@ -75,6 +84,7 @@
 	let showDetailsModal = $state(false);
 	let selectedLicenseForDetails: any = $state(null);
 	let rejectionComment = $state('');
+	let isResolvingNames = $state(false);
 
 	// Student & Parent Search
 	let showStudentModal = $state(false);
@@ -146,11 +156,11 @@
 			console.log('⏳ Iniciando carga de caches...');
 			try {
 				const [studentRes, parentRes] = await Promise.all([
-					studentService.getAll({ per_page: 1000 }).catch((err) => {
+					studentService.getAll({ per_page: 5000 }).catch((err) => {
 						console.warn('⚠️ Falló carga de estudiantes para cache:', err);
 						return [];
 					}),
-					userService.getUsers({ role: 'PADRE', per_page: 1000 }).catch((err) => {
+					userService.getUsers({ role: 'PADRE', per_page: 5000 }).catch((err) => {
 						console.warn('⚠️ Falló carga de usuarios para cache:', err);
 						return [];
 					})
@@ -232,14 +242,14 @@
 					);
 
 					const est =
-						(typeof l.estudiante === 'object' ? l.estudiante : null) ||
-						(typeof l.hijo === 'object' ? l.hijo : null) ||
+						(typeof l.estudiante === 'object' && l.estudiante ? l.estudiante : null) ||
+						(typeof l.hijo === 'object' && l.hijo ? l.hijo : null) ||
 						studentMap[sid] ||
 						{};
 
 					const pad =
-						(typeof l.padre === 'object' ? l.padre : null) ||
-						(typeof l.parent === 'object' ? l.parent : null) ||
+						(typeof l.padre === 'object' && l.padre ? l.padre : null) ||
+						(typeof l.parent === 'object' && l.parent ? l.parent : null) ||
 						parentMap[pid] ||
 						{};
 
@@ -419,9 +429,109 @@
 		}
 	}
 
-	function viewDetails(license: any) {
-		selectedLicenseForDetails = license;
+	async function viewDetails(license: any) {
+		selectedLicenseForDetails = $state.snapshot(license); // Use a snapshot to avoid polluting the list if we don't want to
 		showDetailsModal = true;
+		isResolvingNames = true;
+
+		try {
+			// On-demand resolution if names are still S/N
+			const sid = normalizeId(
+				license.hijo_id || license.student_id || license.estudiante_id || license.id_estudiante
+			);
+			const pid = normalizeId(license.padre_id || license.parent_id || license.id_padre);
+
+			const promises = [];
+
+			if (selectedLicenseForDetails.student.includes('S/N') && sid && sid.length > 5) {
+				promises.push(
+					apiCole
+						.get(`/estudiantes/${sid}`)
+						.then((res: any) => {
+							const s = res.data || res;
+							let sName = (s.nombres || s.nombre || s.fullName || '').trim();
+							if (s.apellidos || s.apellido) sName += ' ' + (s.apellidos || s.apellido);
+							if (sName.trim()) {
+								selectedLicenseForDetails.student = sName.trim();
+								studentMap[sid] = s;
+								// Update the original license in the list too
+								const idx = allLicenses.findIndex((l) => l.id === license.id);
+								if (idx !== -1) allLicenses[idx].student = sName.trim();
+
+								// If we still need grade/shift, get it from the student we just found
+								if (selectedLicenseForDetails.grade === 'S/G' || !selectedLicenseForDetails.grade) {
+									const sGrade = s.grado || s.grade || s.curso || '';
+									const sShift = s.turno || s.shift || '';
+									const sSec = s.seccion || s.paralelo || s.section || '';
+
+									if (sGrade) {
+										selectedLicenseForDetails.grade =
+											typeof sGrade === 'object' ? sGrade.nombre || sGrade.name || '' : sGrade;
+										selectedLicenseForDetails.shift = sShift || selectedLicenseForDetails.shift;
+										selectedLicenseForDetails.section = sSec || selectedLicenseForDetails.section;
+									}
+								}
+							}
+						})
+						.catch(() => {})
+				);
+			}
+
+			if (selectedLicenseForDetails.parent.includes('S/N') && pid && pid.length > 5) {
+				promises.push(
+					apiCole
+						.get(`/papas/${pid}`)
+						.then((res: any) => {
+							const p = res.data || res;
+							let pName = (p.nombre || p.nombres || p.fullName || p.first_name || '').trim();
+							const pLast = (p.apellido || p.apellidos || p.last_name || '').trim();
+							if (pLast) pName += ' ' + pLast;
+
+							if (pName.trim()) {
+								selectedLicenseForDetails.parent = pName.trim();
+								parentMap[pid] = p;
+								const idx = allLicenses.findIndex((l) => l.id === license.id);
+								if (idx !== -1) allLicenses[idx].parent = pName.trim();
+							}
+						})
+						.catch(() => {})
+				);
+			}
+
+			const cid = normalizeId(license.curso_id || '');
+			if (
+				(selectedLicenseForDetails.grade === 'S/G' || !selectedLicenseForDetails.grade) &&
+				cid &&
+				cid.length > 5
+			) {
+				promises.push(
+					apiCole
+						.get(`/cursos/${cid}`)
+						.then((res: any) => {
+							const c = res.data || res;
+							if (c && c.nombre) {
+								selectedLicenseForDetails.grade = c.nombre;
+								selectedLicenseForDetails.shift = c.turno || selectedLicenseForDetails.shift;
+								selectedLicenseForDetails.section = c.paralelo || selectedLicenseForDetails.section;
+								courseMap[cid] = c;
+								const idx = allLicenses.findIndex((l) => l.id === license.id);
+								if (idx !== -1) {
+									allLicenses[idx].grade = c.nombre;
+									allLicenses[idx].shift = c.turno || allLicenses[idx].shift;
+									allLicenses[idx].section = c.paralelo || allLicenses[idx].section;
+								}
+							}
+						})
+						.catch(() => {})
+				);
+			}
+
+			if (promises.length > 0) {
+				await Promise.all(promises);
+			}
+		} finally {
+			isResolvingNames = false;
+		}
 	}
 
 	async function handleDelete(id: number | string) {
@@ -1076,26 +1186,44 @@
 							<div>
 								<p class="text-xs text-gray-500 uppercase font-bold">Estudiante</p>
 								<p class="text-gray-900 dark:text-white font-medium">
-									{selectedLicenseForDetails.student}
+									{#if isResolvingNames && selectedLicenseForDetails.student.includes('S/N')}
+										<span class="animate-pulse text-gray-400">Cargando nombre...</span>
+									{:else}
+										{selectedLicenseForDetails.student}
+									{/if}
 								</p>
 							</div>
 							<div>
 								<p class="text-xs text-gray-500 uppercase font-bold">Padre / Tutor</p>
 								<p class="text-gray-900 dark:text-white font-medium">
-									{selectedLicenseForDetails.parent}
+									{#if isResolvingNames && selectedLicenseForDetails.parent.includes('S/N')}
+										<span class="animate-pulse text-gray-400">Cargando nombre...</span>
+									{:else}
+										{selectedLicenseForDetails.parent}
+									{/if}
 								</p>
 							</div>
 							<div>
-								<p class="text-xs text-gray-500 uppercase font-bold">Grado</p>
+								<p class="text-xs text-gray-500 uppercase font-bold">Curso</p>
 								<p class="text-gray-900 dark:text-white font-medium">
-									{selectedLicenseForDetails.grade}
-									{selectedLicenseForDetails.section}
+									{#if isResolvingNames && (selectedLicenseForDetails.grade === 'S/G' || !selectedLicenseForDetails.grade)}
+										<span class="animate-pulse text-gray-400">Cargando...</span>
+									{:else}
+										{selectedLicenseForDetails.grade === 'S/G'
+											? ''
+											: selectedLicenseForDetails.grade}
+										{selectedLicenseForDetails.section}
+									{/if}
 								</p>
 							</div>
 							<div>
 								<p class="text-xs text-gray-500 uppercase font-bold">Turno</p>
 								<p class="text-gray-900 dark:text-white font-medium">
-									{selectedLicenseForDetails.shift}
+									{#if isResolvingNames && (selectedLicenseForDetails.grade === 'S/G' || !selectedLicenseForDetails.grade)}
+										<span class="animate-pulse text-gray-400">Cargando...</span>
+									{:else}
+										{getShiftName(selectedLicenseForDetails.shift)}
+									{/if}
 								</p>
 							</div>
 						</div>
