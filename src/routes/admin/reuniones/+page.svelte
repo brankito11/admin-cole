@@ -1,10 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { reunionService, cursoService } from '$lib/services';
+	import { reunionService, cursoService, notificationService } from '$lib/services';
 	import { AUTH_TOKEN_KEY } from '$lib/constants/keys.contant';
 	import { browser } from '$app/environment';
 	import Pagination from '$lib/components/pagination.svelte';
-	import type { Reunion, ReunionCreate, ReunionUpdate } from '$lib/interfaces';
+	import {
+		NotificationType,
+		type Reunion,
+		type ReunionCreate,
+		type ReunionUpdate
+	} from '$lib/interfaces';
 	import CourseFilter from '$lib/components/CourseFilter.svelte';
 
 	let reuniones: Reunion[] = $state([]);
@@ -24,7 +29,7 @@
 
 	// Modal states
 	let showModal = $state(false);
-	let modalMode: 'create' | 'edit' = $state('create');
+	let modalMode: 'create' | 'edit' | 'view' = $state('create');
 	let selectedReunion: Reunion | null = $state(null);
 	let showDeleteConfirm = $state(false);
 	let reunionToDelete: Reunion | null = $state(null);
@@ -163,6 +168,28 @@
 		showModal = true;
 	}
 
+	function openViewModal(reunion: Reunion) {
+		modalMode = 'view';
+		selectedReunion = reunion;
+		formData = {
+			nombre_reunion: reunion.titulo,
+			tema: reunion.descripcion,
+			fecha: reunion.fecha_hora ? reunion.fecha_hora.split('T')[0] : '',
+			hora_inicio: reunion.fecha_hora
+				? new Date(reunion.fecha_hora).toLocaleTimeString('es-ES', {
+						hour: '2-digit',
+						minute: '2-digit',
+						hour12: false
+					})
+				: '',
+			hora_conclusion: '',
+			alcance: (reunion as any).alcance || 'todos',
+			curso_id: (reunion as any).curso_id || '',
+			cursos_ids: (reunion as any).cursos_ids || []
+		};
+		showModal = true;
+	}
+
 	function closeModal() {
 		showModal = false;
 		selectedReunion = null;
@@ -227,7 +254,31 @@
 			console.log('📤 Enviando datos de reunión:', dataToSend);
 
 			if (modalMode === 'create') {
-				await reunionService.createReunion(dataToSend as any);
+				const result = await reunionService.createReunion(dataToSend as any);
+				// Tratar de crear una notificación manual si el backend no lo hace
+				try {
+					console.log('📢 Intentando crear notificación manual para reunión...');
+					const notifData = {
+						title: 'Nueva Reunión Programada',
+						message: `Se ha invitado a una nueva reunión: ${formData.nombre_reunion}`,
+						type: NotificationType.MEETING,
+						category: 'info' as any,
+						link: '/app/reuniones',
+						metadata: {
+							reunion_id: (result as any)._id || (result as any).id,
+							fecha: isoFecha
+						}
+					};
+					console.log('📦 Enviando datos de notificación:', notifData);
+					const nResult = await notificationService.createNotification(notifData as any);
+					console.log('✅ Notificación manual creada exitosamente:', nResult);
+				} catch (nErr) {
+					console.error('❌ Error detallado al crear la notificación manual:', nErr);
+					console.warn(
+						'⚠️ El backend podría no soportar el endpoint POST /notificaciones. Revisa la consola y el servidor.',
+						nErr
+					);
+				}
 			} else if (selectedReunion) {
 				await reunionService.updateReunion(selectedReunion._id, dataToSend as any);
 			}
@@ -546,6 +597,13 @@
 								<td class="px-6 py-4 whitespace-nowrap text-sm">
 									<div class="flex items-center gap-2">
 										<button
+											onclick={() => openViewModal(reunion)}
+											class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+											title="Inspeccionar"
+										>
+											👁️
+										</button>
+										<button
 											onclick={() => openEditModal(reunion)}
 											class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
 											title="Editar"
@@ -602,7 +660,11 @@
 			onkeydown={(e) => e.stopPropagation()}
 		>
 			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-				{modalMode === 'create' ? '➕ Programar Nuevo Evento' : '✏️ Editar Evento'}
+				{#if modalMode === 'create'}
+					➕ Programar Nuevo Evento
+				{:else}
+					{modalMode === 'edit' ? '✏️ Editar Evento' : '👁️ Detalles del Evento'}
+				{/if}
 			</h2>
 
 			<!-- Error Message in Modal -->
@@ -639,7 +701,8 @@
 							bind:value={formData.nombre_reunion}
 							placeholder="Ej: Entrega de Boletines"
 							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+							disabled={modalMode === 'view'}
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500"
 						/>
 					</div>
 					<div class="col-span-2">
@@ -654,7 +717,8 @@
 							bind:value={formData.tema}
 							placeholder="Ej: Revisión de tercer bimestre"
 							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+							disabled={modalMode === 'view'}
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500"
 						/>
 					</div>
 					<div>
@@ -667,7 +731,8 @@
 							id="fecha"
 							bind:value={formData.fecha}
 							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none color-scheme-light dark:color-scheme-dark"
+							disabled={modalMode === 'view'}
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none color-scheme-light dark:color-scheme-dark disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500"
 						/>
 					</div>
 					<div>
@@ -682,7 +747,8 @@
 							id="hora_inicio"
 							bind:value={formData.hora_inicio}
 							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none color-scheme-light dark:color-scheme-dark"
+							disabled={modalMode === 'view'}
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none color-scheme-light dark:color-scheme-dark disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500"
 						/>
 					</div>
 					<div class="col-span-2">
@@ -697,7 +763,8 @@
 							id="hora_conclusion"
 							bind:value={formData.hora_conclusion}
 							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none color-scheme-light dark:color-scheme-dark"
+							disabled={modalMode === 'view'}
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none color-scheme-light dark:color-scheme-dark disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500"
 						/>
 					</div>
 
@@ -712,7 +779,8 @@
 						<select
 							id="alcance"
 							bind:value={formData.alcance}
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+							disabled={modalMode === 'view'}
+							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500"
 						>
 							<option value="todos">📚 Todos los Cursos</option>
 							<option value="uno">📖 Un Curso Específico</option>
@@ -733,7 +801,8 @@
 								id="curso_id"
 								bind:value={formData.curso_id}
 								required
-								class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+								disabled={modalMode === 'view'}
+								class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500"
 							>
 								<option value="">Seleccione un curso...</option>
 								{#each courses as course}
@@ -763,9 +832,10 @@
 											type="checkbox"
 											value={course._id}
 											checked={formData.cursos_ids.includes(course._id)}
+											disabled={modalMode === 'view'}
 											onchange={(e) =>
 												handleCourseToggle(course._id, (e.target as HTMLInputElement).checked)}
-											class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+											class="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 disabled:opacity-50"
 										/>
 										<span class="text-sm text-gray-700 dark:text-gray-300">
 											{course.nivel} - {course.nombre}
@@ -785,13 +855,15 @@
 					>
 						Cancelar
 					</button>
-					<button
-						type="submit"
-						disabled={loading}
-						class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50 transition-all transform active:scale-95"
-					>
-						{loading ? 'Guardando...' : modalMode === 'create' ? 'Guardar' : 'Actualizar'}
-					</button>
+					{#if modalMode !== 'view'}
+						<button
+							type="submit"
+							disabled={loading}
+							class="px-6 py-2 bg-gradient-to-r from-[#6E7D4E] to-[#8B9D6E] text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50 transition-all transform active:scale-95"
+						>
+							{loading ? 'Guardando...' : modalMode === 'create' ? 'Guardar' : 'Actualizar'}
+						</button>
+					{/if}
 				</div>
 			</form>
 		</div>

@@ -6,3 +6,4 @@ export * from './notification.interface';
 export * from './padre.interface';
 export * from './reunion.interface';
 export * from './user.interface';
+export * from './libreta.interface';

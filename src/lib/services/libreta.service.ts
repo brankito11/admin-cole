@@ -1,28 +1,14 @@
 import { apiCole } from '$lib/config/apiCole.config';
-
-// Type definitions for Libreta API responses
-export interface Libreta {
-	id: number;
-	student: string;
-	grade: string;
-	section: string;
-	period: string;
-	average: number;
-	status: string;
-	[key: string]: any; // Allow additional properties
-}
-
-export interface LibretaListResponse {
-	data: Libreta[];
-	total: number;
-	total_pages: number;
-	page: number;
-	per_page: number;
-}
+import type {
+	Libreta,
+	LibretaCreate,
+	LibretaUpdate,
+	LibretaListResponse
+} from '$lib/interfaces/libreta.interface';
 
 class LibretaService {
 	// Get all libretas with optional filters and pagination
-	async getAll(filters: any = {}): Promise<LibretaListResponse | Libreta[]> {
+	async getAll(filters: any = {}): Promise<LibretaListResponse> {
 		const { page = 1, per_page = 10, q = '', ...rest } = filters;
 
 		// Build query params
@@ -38,21 +24,37 @@ class LibretaService {
 			if (rest[key]) params.append(key, rest[key]);
 		});
 
-		return await apiCole.get<LibretaListResponse | Libreta[]>(`/libretas?${params.toString()}`);
+		// Using trailing slash as seen in Swagger screenshot
+		const response = await apiCole.get<LibretaListResponse | Libreta[]>(
+			`/libretas/?${params.toString()}`
+		);
+
+		// Ensure we always return a LibretaListResponse format
+		if (Array.isArray(response)) {
+			return {
+				data: response,
+				total: response.length,
+				total_pages: 1,
+				page: 1,
+				per_page: response.length || 10
+			};
+		}
+
+		return response;
 	}
 
 	// Create new libreta
-	async create(libreta: any) {
-		return await apiCole.post('/libretas', libreta);
+	async create(libreta: LibretaCreate): Promise<Libreta> {
+		return await apiCole.post<Libreta>('/libretas/', libreta);
 	}
 
 	// Update existing libreta
-	async update(id: string | number, libreta: any) {
-		return await apiCole.put(`/libretas/${id}`, libreta);
+	async update(id: string | number, libreta: LibretaUpdate): Promise<Libreta> {
+		return await apiCole.put<Libreta>(`/libretas/${id}`, libreta);
 	}
 
 	// Delete libreta by ID
-	async delete(id: string | number) {
+	async delete(id: string | number): Promise<void> {
 		return await apiCole.delete(`/libretas/${id}`);
 	}
 }

@@ -1,217 +1,116 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { libretaService } from '$lib/services';
-	import { cursoService } from '$lib/services/curso.service';
+	import { onMount, tick } from 'svelte';
+	import { libretaService, studentService, cursoService } from '$lib/services';
+	import { LibretaStatus, LibretaPeriod, type Libreta } from '$lib/interfaces';
 	import Pagination from '$lib/components/pagination.svelte';
 	import CourseFilter from '$lib/components/CourseFilter.svelte';
 
+	let allLibretas: Libreta[] = $state([]);
 	let showModal = $state(false);
-	let editingBoletin: any = $state(null);
-	let courses: any[] = $state([]);
-	let courseMap: any = $state({});
+	let editingLibreta: Libreta | null = $state(null);
 	let loading = $state(false);
 	let isLoadingData = $state(true);
+	let students: any[] = $state([]);
+	let courses: any[] = $state([]);
+	let error = $state('');
 
 	// Pagination
 	let page = $state(1);
 	let perPage = $state(10);
 	let total = $state(0);
-	let totalPages = $state(0);
+	let totalPages = $state(1);
 
+	// Filters
 	let searchTerm = $state('');
-	let filterGrade = $state('Todos');
-	let filterStatus = $state('Todos');
-	let filterDate = $state('');
-
-	// Level, Grade, Shift, Section Interaction
 	let selectedLevel = $state('');
 	let selectedGrade = $state('');
 	let selectedShift = $state('');
 	let selectedSection = $state('');
+	let filterStatus = $state('Todos');
 
 	// Form State
 	let formData = $state({
-		student: '',
-		grade: '',
-		section: '',
-		period: '1er Trimestre',
+		student_id: '',
+		curso_id: '',
+		period: LibretaPeriod.PRIMER_TRIMESTRE,
 		average: 0,
-		status: 'Borrador'
+		status: LibretaStatus.BORRADOR
 	});
 
-	// Dynamic Filter Data
 	let levels: Record<string, string[]> = $state({});
 
-	let availableShifts = $derived(getAvailableShifts(selectedGrade));
-	let availableSections = $derived(getAvailableSections(selectedGrade, selectedShift));
-
-	function getAvailableShifts(grade: string) {
-		if (!grade) return [];
-		const relevantCourses = courses.filter((c) => c.nombre === grade);
-		return [...new Set(relevantCourses.map((c) => c.turno))].sort();
-	}
-
-	function getAvailableSections(grade: string, shift: string) {
-		if (!grade) return [];
-		let relevantCourses = courses.filter((c) => c.nombre === grade);
-		if (shift) {
-			relevantCourses = relevantCourses.filter((c) => c.turno === shift);
-		}
-		return [...new Set(relevantCourses.map((c) => c.paralelo))].sort();
-	}
-
-	let allBoletines: any[] = $state([]);
-
-	onMount(() => {
-		initData();
+	onMount(async () => {
+		await Promise.all([initCourses(), loadLibretas(), loadStudents()]);
 	});
 
-	const gradeOrder = [
-		'Pre-Kinder',
-		'Kinder',
-		'Primero de Primaria',
-		'Segundo de Primaria',
-		'Tercero de Primaria',
-		'Cuarto de Primaria',
-		'Quinto de Primaria',
-		'Sexto de Primaria',
-		'Primero de Secundaria',
-		'Segundo de Secundaria',
-		'Tercero de Secundaria',
-		'Cuarto de Secundaria',
-		'Quinto de Secundaria',
-		'Sexto de Secundaria'
-	];
-
-	function sortGrades(grades: string[]) {
-		return grades.sort((a, b) => {
-			let idxA = gradeOrder.indexOf(a);
-			let idxB = gradeOrder.indexOf(b);
-
-			if (idxA === -1) idxA = gradeOrder.findIndex((g) => a.startsWith(g.split(' ')[0]));
-			if (idxB === -1) idxB = gradeOrder.findIndex((g) => b.startsWith(g.split(' ')[0]));
-
-			if (idxA === -1) idxA = 999;
-			if (idxB === -1) idxB = 999;
-
-			return idxA - idxB;
-		});
-	}
-
-	async function initData() {
-		isLoadingData = true;
+	async function initCourses() {
 		try {
 			const res = await cursoService.getAll(0, 1000);
-			courses = Array.isArray(res) ? res : res.data || [];
+			courses = Array.isArray(res) ? res : (res as any).data || [];
 
 			const newLevels: Record<string, Set<string>> = {};
-
 			courses.forEach((c) => {
-				const cId = String(c._id || c.id);
-				courseMap[cId] = c;
-
-				if (c.codigo) courseMap[c.codigo] = c;
-				if (c.nombre) courseMap[c.nombre] = c;
-				if (c.malla_id) courseMap[c.malla_id] = c;
-
 				const niv = c.nivel || 'Otros';
 				if (!newLevels[niv]) newLevels[niv] = new Set();
 				newLevels[niv].add(c.nombre);
 			});
 
 			levels = {};
-			['Inicial', 'Primaria', 'Secundaria'].forEach((key) => {
-				if (newLevels[key]) {
-					levels[key] = sortGrades(Array.from(newLevels[key]));
-					delete newLevels[key];
-				}
+			Object.entries(newLevels).forEach(([k, v]) => {
+				levels[k] = Array.from(v).sort();
 			});
-			Object.keys(newLevels).forEach((key) => {
-				levels[key] = sortGrades(Array.from(newLevels[key]));
-			});
-
-			await loadBoletines();
 		} catch (e) {
-			console.error('Error initializing data', e);
-			await loadBoletines();
+			console.error('Error loading courses:', e);
 		}
 	}
 
-	async function loadBoletines() {
+	async function loadStudents() {
+		try {
+			const res = await studentService.getAll({ per_page: 1000 });
+			students = Array.isArray(res) ? res : (res as any).data || [];
+		} catch (e) {
+			console.error('Error loading students:', e);
+		}
+	}
+
+	async function loadLibretas() {
 		isLoadingData = true;
+		error = '';
 		try {
 			const filters: any = {
 				page,
-				per_page: perPage
+				per_page: perPage,
+				q: searchTerm,
+				nivel: selectedLevel,
+				grado: selectedGrade,
+				turno: selectedShift,
+				paralelo: selectedSection
 			};
 
-			if (searchTerm) filters.q = searchTerm;
-			if (selectedLevel) filters.nivel = selectedLevel;
-			if (selectedGrade) filters.grado = selectedGrade;
-			if (selectedShift) filters.turno = selectedShift;
-			if (selectedSection) filters.paralelo = selectedSection;
-			if (filterStatus !== 'Todos') filters.estado = filterStatus;
-			if (filterDate) filters.fecha = filterDate;
-
-			console.log('Fetching boletines with filters:', filters);
+			if (filterStatus !== 'Todos') filters.status = filterStatus;
 
 			const response = await libretaService.getAll(filters);
-			console.log('API Response for Boletines:', response);
-
-			// Type guard: check if response has 'data' property (LibretaListResponse)
-			if ('data' in response && response.data) {
-				allBoletines = Array.isArray(response.data) ? response.data : [];
-				total = response.total || 0;
-				totalPages = response.total_pages || 0;
-			} else {
-				// Response is Libreta[] array
-				allBoletines = Array.isArray(response) ? response : [];
-				total = allBoletines.length;
-				totalPages = 1;
-			}
-		} catch (error) {
-			console.error('Error loading boletines:', error);
-			allBoletines = [];
+			allLibretas = response.data;
+			total = response.total;
+			totalPages = response.total_pages;
+		} catch (e: any) {
+			console.error('Error loading libretas:', e);
+			error = 'Error al cargar las libretas: ' + (e.message || '');
+			allLibretas = [];
 		} finally {
 			isLoadingData = false;
 		}
 	}
 
-	function handlePageChange(p: number) {
-		page = p;
-		loadBoletines();
-		window.scrollTo({ top: 0, behavior: 'smooth' });
-	}
-
 	function handleFilterChange() {
 		page = 1;
-		loadBoletines();
+		loadLibretas();
 	}
 
-	function selectLevel(level: string) {
-		selectedLevel = level;
-		selectedGrade = '';
-		selectedShift = '';
-		selectedSection = '';
-		handleFilterChange();
-	}
-
-	function selectGrade(grade: string) {
-		selectedGrade = grade;
-		selectedShift = '';
-		selectedSection = '';
-		handleFilterChange();
-	}
-
-	function selectShift(shift: string) {
-		selectedShift = shift;
-		selectedSection = '';
-		handleFilterChange();
-	}
-
-	function selectSection(section: string) {
-		selectedSection = section;
-		handleFilterChange();
+	function handlePageChange(p: number) {
+		page = p;
+		loadLibretas();
+		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
 	let searchTimeout: any;
@@ -222,82 +121,71 @@
 		}, 600);
 	}
 
-	const getStatusStyle = (status: string) => {
-		if (status === 'Publicado') return 'bg-green-100 text-green-800 border-green-200';
-		if (status === 'Borrador') return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-		return 'bg-gray-100 text-gray-800 border-gray-200';
-	};
-
-	const getGradeColor = (grade: number) => {
-		if (grade >= 9) return 'text-green-600 font-bold';
-		if (grade >= 7) return 'text-blue-600 font-bold';
-		if (grade >= 5) return 'text-yellow-600 font-bold';
-		return 'text-red-600 font-bold';
-	};
-
 	function handleCreate() {
-		editingBoletin = null;
+		editingLibreta = null;
 		formData = {
-			student: '',
-			grade: '',
-			section: '',
-			period: '1er Trimestre',
+			student_id: '',
+			curso_id: '',
+			period: LibretaPeriod.PRIMER_TRIMESTRE,
 			average: 0,
-			status: 'Borrador'
+			status: LibretaStatus.BORRADOR
 		};
 		showModal = true;
 	}
 
-	function handleEdit(boletin: any) {
-		editingBoletin = boletin;
+	function handleEdit(libreta: Libreta) {
+		editingLibreta = libreta;
 		formData = {
-			student: boletin.student,
-			grade: boletin.grade,
-			section: boletin.section,
-			period: boletin.period,
-			average: boletin.average,
-			status: boletin.status
+			student_id: libreta.student_id || '',
+			curso_id: libreta.curso_id || '',
+			period: (libreta.period as LibretaPeriod) || LibretaPeriod.PRIMER_TRIMESTRE,
+			average: libreta.average || 0,
+			status: (libreta.status as LibretaStatus) || LibretaStatus.BORRADOR
 		};
 		showModal = true;
 	}
 
 	async function handleSubmit(e: Event) {
-		if (e) e.preventDefault();
+		e.preventDefault();
 		loading = true;
+		error = '';
 		try {
-			if (editingBoletin) {
-				await libretaService.update(editingBoletin.id, formData);
-				alert('Boletín actualizado correctamente');
+			if (editingLibreta) {
+				await libretaService.update(editingLibreta.id || editingLibreta._id!, formData);
 			} else {
 				await libretaService.create(formData);
-				alert('Boletín creado correctamente');
 			}
 			showModal = false;
-			await loadBoletines();
-		} catch (error: any) {
-			console.error('Error saving boletin:', error);
-			alert(`Error al guardar: ${error.message || 'Error desconocido'}`);
+			await loadLibretas();
+		} catch (e: any) {
+			console.error('Error saving libreta:', e);
+			error = e.message || 'Error al guardar la libreta';
 		} finally {
 			loading = false;
 		}
 	}
 
-	async function handleDelete(id: number) {
-		if (confirm('¿Estás seguro de eliminar este boletín?')) {
+	async function handleDelete(id: string | number) {
+		if (confirm('¿Estás seguro de eliminar este registro?')) {
 			try {
 				await libretaService.delete(id);
-				await loadBoletines();
-				alert('Boletín eliminado');
-			} catch (error) {
-				console.error('Error delete:', error);
-				alert('Error al eliminar boletín');
+				await loadLibretas();
+			} catch (e) {
+				console.error('Error delete:', e);
+				alert('Error al eliminar');
 			}
 		}
 	}
 
+	const getStatusStyle = (status: string) => {
+		if (status === LibretaStatus.PUBLICADO) return 'bg-green-100 text-green-800 border-green-200';
+		if (status === LibretaStatus.BORRADOR) return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+		return 'bg-gray-100 text-gray-800 border-gray-200';
+	};
+
 	let avgGeneral = $derived(
-		allBoletines.length > 0
-			? allBoletines.reduce((sum, b) => sum + (b.average || 0), 0) / allBoletines.length
+		allLibretas.length > 0
+			? allLibretas.reduce((sum, b) => sum + (b.average || 0), 0) / allLibretas.length
 			: 0
 	);
 </script>
@@ -305,9 +193,9 @@
 <div class="space-y-6 animate-fade-in">
 	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
 		<div>
-			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Boletines</h1>
+			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Libretas</h1>
 			<p class="text-gray-600 dark:text-gray-400 mt-1">
-				Administra las calificaciones de todos los estudiantes
+				Administra las calificaciones y el progreso académico
 			</p>
 		</div>
 		<button
@@ -315,122 +203,37 @@
 			class="px-6 py-3 bg-gradient-to-r from-[#6E7D4E] to-[#5a6640] text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center gap-2"
 		>
 			<span class="text-xl">➕</span>
-			Crear Boletín
+			Nueva Libreta
 		</button>
 	</div>
 
-	<!-- Hierarchy Controls -->
-	<div class="space-y-4">
-		<!-- Level Tabs -->
-		<div class="flex flex-wrap gap-4">
-			{#each Object.keys(levels) as level}
-				<button
-					onclick={() => selectLevel(level)}
-					class="px-8 py-3 rounded-t-2xl font-bold transition-all text-lg flex-1 md:flex-none border-b-2
-					{selectedLevel === level
-						? 'bg-white dark:bg-gray-800 text-blue-600 border-blue-500 shadow-sm'
-						: 'bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 border-transparent hover:bg-gray-200 dark:hover:bg-gray-700'}"
-				>
-					{level}
-				</button>
-			{/each}
+	<CourseFilter
+		{levels}
+		{courses}
+		bind:selectedLevel
+		bind:selectedGrade
+		bind:selectedShift
+		bind:selectedSection
+		onFilterChange={handleFilterChange}
+	/>
+
+	{#if error}
+		<div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg animate-shake">
+			<p class="text-red-700 font-medium">{error}</p>
 		</div>
-
-		<!-- Unified Selection Container -->
-		{#if selectedLevel}
-			<div
-				class="bg-white dark:bg-gray-800 p-6 rounded-b-2xl rounded-tr-2xl shadow-xl border border-gray-200 dark:border-gray-700 animate-slide-up space-y-8 relative"
-			>
-				<!-- Grades -->
-				<div>
-					<h3
-						class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
-					>
-						<span class="w-2 h-2 rounded-full bg-blue-500"></span>
-						Selecciona el Curso
-					</h3>
-					<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-						{#each levels[selectedLevel] as grade}
-							<button
-								onclick={() => selectGrade(grade)}
-								class="px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
-								{selectedGrade === grade
-									? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-900/20 dark:border-blue-500 dark:text-blue-300 shadow-md transform scale-105'
-									: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
-							>
-								{grade}
-							</button>
-						{/each}
-					</div>
-				</div>
-
-				<!-- Turno & Paralelo -->
-				{#if selectedGrade}
-					<div
-						class="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-gray-100 dark:border-gray-700"
-					>
-						<div class="animate-fade-in">
-							<h3
-								class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
-							>
-								<span class="w-2 h-2 rounded-full bg-purple-500"></span>
-								Turno
-							</h3>
-							<div class="flex gap-3">
-								{#each availableShifts as shift}
-									<button
-										onclick={() => selectShift(shift)}
-										class="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-all text-center border-2
-										{selectedShift === shift
-											? 'bg-purple-50 border-purple-500 text-purple-700 dark:bg-purple-900/20 dark:border-purple-500 dark:text-purple-300 shadow-md'
-											: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
-									>
-										{shift}
-									</button>
-								{/each}
-							</div>
-						</div>
-
-						{#if selectedShift}
-							<div class="animate-fade-in">
-								<h3
-									class="text-xs font-bold text-gray-400 dark:text-gray-500 mb-3 uppercase tracking-widest flex items-center gap-2"
-								>
-									<span class="w-2 h-2 rounded-full bg-pink-500"></span>
-									Paralelo
-								</h3>
-								<div class="flex gap-3">
-									{#each availableSections as section}
-										<button
-											onclick={() => selectSection(section)}
-											class="w-14 h-12 rounded-xl text-lg font-bold transition-all flex items-center justify-center border-2
-											{selectedSection === section
-												? 'bg-pink-50 border-pink-500 text-pink-700 dark:bg-pink-900/20 dark:border-pink-500 dark:text-pink-300 shadow-md'
-												: 'bg-gray-50 dark:bg-gray-700/50 border-transparent text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'}"
-										>
-											{section}
-										</button>
-									{/each}
-								</div>
-							</div>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		{/if}
-	</div>
+	{/if}
 
 	<!-- Summary Cards -->
 	<div class="grid grid-cols-1 md:grid-cols-4 gap-6">
 		<div class="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-green-100 text-sm font-medium">Publicados</p>
+					<p class="text-teal-100 text-sm font-medium">Publicadas</p>
 					<p class="text-3xl font-bold mt-2">
-						{allBoletines.filter((b) => b.status === 'Publicado').length}
+						{allLibretas.filter((b) => b.status === LibretaStatus.PUBLICADO).length}
 					</p>
 				</div>
-				<div class="text-5xl opacity-80">✓</div>
+				<div class="text-5xl opacity-80">✅</div>
 			</div>
 		</div>
 
@@ -439,7 +242,7 @@
 				<div>
 					<p class="text-yellow-100 text-sm font-medium">Borradores</p>
 					<p class="text-3xl font-bold mt-2">
-						{allBoletines.filter((b) => b.status === 'Borrador').length}
+						{allLibretas.filter((b) => b.status === LibretaStatus.BORRADOR).length}
 					</p>
 				</div>
 				<div class="text-5xl opacity-80">📝</div>
@@ -449,17 +252,17 @@
 		<div class="bg-gradient-to-br from-[#6E7D4E] to-[#5a6640] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-blue-100 text-sm font-medium">Promedio General</p>
+					<p class="text-lime-100 text-sm font-medium">Promedio General</p>
 					<p class="text-3xl font-bold mt-2">{avgGeneral.toFixed(1)}</p>
 				</div>
-				<div class="text-5xl opacity-80">📊</div>
+				<div class="text-5xl opacity-80">📈</div>
 			</div>
 		</div>
 
-		<div class="bg-gradient-to-br from-[#F0C48C] to-[#d9a86d] rounded-2xl p-6 text-white shadow-lg">
+		<div class="bg-gradient-to-br from-[#505F36] to-[#3a4527] rounded-2xl p-6 text-white shadow-lg">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-purple-100 text-sm font-medium">Total Boletines</p>
+					<p class="text-gray-100 text-sm font-medium">Total Registros</p>
 					<p class="text-3xl font-bold mt-2">{total}</p>
 				</div>
 				<div class="text-5xl opacity-80">📋</div>
@@ -471,160 +274,121 @@
 	<div
 		class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
 	>
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 			<div>
 				<label
-					for="search-libreta"
-					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Buscar</label
+					for="search"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+					>Buscar Estudiante</label
 				>
 				<input
-					id="search-libreta"
+					id="search"
 					type="text"
 					bind:value={searchTerm}
 					oninput={handleSearchInput}
-					placeholder="Buscar por estudiante o período..."
-					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+					placeholder="Nombre o RUDE..."
+					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] outline-none"
 				/>
 			</div>
 			<div>
 				<label
-					for="status-libreta"
-					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-					>Filtrar por Estado</label
+					for="filter-status"
+					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Estado</label
 				>
 				<select
-					id="status-libreta"
+					id="filter-status"
 					bind:value={filterStatus}
 					onchange={handleFilterChange}
-					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#6E7D4E] outline-none"
 				>
 					<option>Todos</option>
-					<option>Publicado</option>
-					<option>Borrador</option>
+					<option value={LibretaStatus.BORRADOR}>Borrador</option>
+					<option value={LibretaStatus.PUBLICADO}>Publicado</option>
 				</select>
-			</div>
-			<div>
-				<label
-					for="date-libreta"
-					class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-					>Filtrar por Fecha</label
-				>
-				<input
-					id="date-libreta"
-					type="date"
-					bind:value={filterDate}
-					onchange={handleFilterChange}
-					class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-				/>
 			</div>
 		</div>
 	</div>
 
-	<!-- Boletines Table -->
+	<!-- Table -->
 	<div
 		class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
 	>
 		{#if isLoadingData}
 			<div class="flex items-center justify-center py-20">
-				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6E7D4E]"></div>
 			</div>
-		{:else if allBoletines.length === 0}
+		{:else if allLibretas.length === 0}
 			<div class="text-center py-20">
-				<div class="text-6xl mb-4">📋</div>
-				<p class="text-gray-500 text-lg">No se encontraron boletines</p>
+				<div class="text-6xl mb-4">🌫️</div>
+				<p class="text-gray-500 text-lg">No se encontraron registros</p>
 			</div>
 		{:else}
 			<div class="overflow-x-auto">
 				<table class="w-full">
 					<thead class="bg-gray-50 dark:bg-gray-700">
 						<tr>
-							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-								>ID</th
-							>
-							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase"
 								>Estudiante</th
 							>
-							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-								>Grado</th
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Curso</th>
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Período</th>
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Promedio</th
 							>
-							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-								>Período</th
-							>
-							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-								>Promedio</th
-							>
-							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-								>Estado</th
-							>
-							<th
-								class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+							<th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Estado</th>
+							<th class="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase"
 								>Acciones</th
 							>
 						</tr>
 					</thead>
-					<tbody class="divide-y divide-gray-200">
-						{#each allBoletines as boletin}
+					<tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+						{#each allLibretas as libreta}
 							<tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-								<td
-									class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white"
-									>#{boletin.id}</td
-								>
-								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm font-semibold text-gray-900 dark:text-white">
-										{boletin.student}
+								<td class="px-6 py-4">
+									<div class="text-sm font-bold text-gray-900 dark:text-white">
+										{libreta.student_name || 'Estudiante'}
+										{#if !libreta.student_name}
+											<span class="text-[10px] font-mono text-gray-400"
+												>ID: {String(libreta.student_id).slice(-6)}</span
+											>
+										{/if}
 									</div>
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap">
-									<div class="text-sm text-gray-900 dark:text-white">{boletin.grade}</div>
-									<div class="text-xs text-gray-500 dark:text-gray-400">
-										Sección {boletin.section}
+								<td class="px-6 py-4">
+									<div class="text-sm text-gray-600 dark:text-gray-300">
+										{libreta.curso_nombre || 'Sin curso'}
 									</div>
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"
-									>{boletin.period}</td
-								>
-								<td class="px-6 py-4 whitespace-nowrap">
-									<span class="text-lg {getGradeColor(boletin.average)}"
-										>{boletin.average.toFixed(1)}</span
-									>
-								</td>
-								<td class="px-6 py-4 whitespace-nowrap">
-									<span
-										class="px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full border {getStatusStyle(
-											boletin.status
-										)}"
-									>
-										{boletin.status}
+								<td class="px-6 py-4 text-sm font-medium">{libreta.period}</td>
+								<td class="px-6 py-4">
+									<span class="text-lg font-black text-indigo-600 dark:text-indigo-400">
+										{(libreta.average || 0).toFixed(1)}
 									</span>
 								</td>
-								<td class="px-6 py-4 whitespace-nowrap text-sm">
-									<div class="flex items-center gap-2">
+								<td class="px-6 py-4">
+									<span
+										class="px-3 py-1 rounded-full text-xs font-bold border {getStatusStyle(
+											libreta.status as string
+										)}"
+									>
+										{libreta.status}
+									</span>
+								</td>
+								<td class="px-6 py-4 text-right">
+									<div class="flex justify-end gap-2">
 										<button
-											onclick={() => handleEdit(boletin)}
-											class="text-blue-600 hover:text-blue-900 font-medium"
-											title="Editar"
+											onclick={() => handleEdit(libreta)}
+											class="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+											title="Editar">✏️</button
 										>
-											✏️
-										</button>
 										<button
-											onclick={() => handleDelete(boletin.id)}
-											class="text-red-600 hover:text-red-900 font-medium"
-											title="Eliminar"
+											onclick={() => handleDelete(libreta.id || libreta._id!)}
+											class="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+											title="Eliminar">🗑️</button
 										>
-											🗑️
-										</button>
-										<button class="text-green-600 hover:text-green-900 font-medium" title="Ver">
-											👁️
-										</button>
-										<button class="text-purple-600 hover:text-purple-900 font-medium" title="PDF">
-											📄
-										</button>
+										<button
+											class="p-2 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-colors"
+											title="Ver Detalle">👁️</button
+										>
 									</div>
 								</td>
 							</tr>
@@ -632,8 +396,6 @@
 					</tbody>
 				</table>
 			</div>
-
-			<!-- Pagination -->
 			{#if total > 0}
 				<Pagination
 					currentPage={page}
@@ -648,118 +410,159 @@
 </div>
 
 {#if showModal}
-	<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+	<div
+		class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
+		onclick={(e) => e.target === e.currentTarget && (showModal = false)}
+		onkeydown={(e) => e.key === 'Escape' && (showModal = false)}
+		role="button"
+		tabindex="0"
+	>
 		<div
-			class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up"
+			class="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl max-w-2xl w-full p-8 animate-slide-up border border-white/20"
 		>
-			<h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-				{editingBoletin ? 'Editar Boletín' : 'Registrar Nuevo Boletín'}
-			</h2>
-			<form onsubmit={handleSubmit} class="space-y-4">
-				<div class="grid grid-cols-2 gap-4">
+			<div class="flex items-center justify-between mb-8">
+				<h2 class="text-2xl font-black text-gray-900 dark:text-white">
+					{editingLibreta ? '📝 Editar Libreta' : '✨ Nueva Libreta Academicar'}
+				</h2>
+				<button onclick={() => (showModal = false)} class="text-gray-400 hover:text-gray-600"
+					>✕</button
+				>
+			</div>
+
+			<form onsubmit={handleSubmit} class="space-y-6">
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 					<div class="col-span-2">
 						<label
 							for="student"
-							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
+							class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2"
 							>Estudiante</label
 						>
-						<input
+						<select
 							id="student"
-							type="text"
-							bind:value={formData.student}
+							bind:value={formData.student_id}
 							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-						/>
-					</div>
-					<div>
-						<label
-							for="grade"
-							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Grado</label
+							class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-2xl bg-gray-50 dark:bg-gray-700 focus:ring-4 focus:ring-[#6E7D4E]/20 outline-none transition-all"
 						>
-						<input
-							id="grade"
-							type="text"
-							bind:value={formData.grade}
-							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-						/>
+							<option value="">Selecciona un estudiante...</option>
+							{#each students as student}
+								<option value={student._id || student.id}>
+									{student.nombres}
+									{student.apellidos} ({student.rude || 'S/N'})
+								</option>
+							{/each}
+						</select>
 					</div>
-					<div>
-						<label
-							for="section"
-							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-							>Sección</label
+
+					<div class="col-span-2">
+						<label for="curso" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2"
+							>Curso Definido</label
 						>
-						<input
-							id="section"
-							type="text"
-							bind:value={formData.section}
+						<select
+							id="curso"
+							bind:value={formData.curso_id}
 							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-						/>
+							class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-2xl bg-gray-50 dark:bg-gray-700 focus:ring-4 focus:ring-[#6E7D4E]/20 outline-none transition-all"
+						>
+							<option value="">Selecciona un curso...</option>
+							{#each courses as curso}
+								<option value={curso._id || curso.id}>
+									{curso.nombre} - {curso.nivel} ({curso.turno})
+								</option>
+							{/each}
+						</select>
 					</div>
+
 					<div>
 						<label
 							for="period"
-							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-							>Período</label
+							class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2"
+							>Período Seleccionado</label
 						>
 						<select
 							id="period"
 							bind:value={formData.period}
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+							class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-2xl bg-gray-50 dark:bg-gray-700 focus:ring-4 focus:ring-blue-500/20 outline-none"
 						>
-							<option>1er Trimestre</option>
-							<option>2do Trimestre</option>
-							<option>3er Trimestre</option>
-							<option>Final</option>
+							<option value={LibretaPeriod.PRIMER_TRIMESTRE}>1er Trimestre</option>
+							<option value={LibretaPeriod.SEGUNDO_TRIMESTRE}>2do Trimestre</option>
+							<option value={LibretaPeriod.TERCER_TRIMESTRE}>3er Trimestre</option>
+							<option value={LibretaPeriod.FINAL}>Promedio Final</option>
 						</select>
 					</div>
+
 					<div>
-						<label
-							for="average"
-							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-							>Promedio</label
+						<label for="avg" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2"
+							>Promedio Alcanzado</label
 						>
 						<input
-							id="average"
+							id="avg"
 							type="number"
-							step="0.1"
+							step="0.01"
+							min="0"
+							max="100"
 							bind:value={formData.average}
 							required
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+							class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-2xl bg-gray-50 dark:bg-gray-700 focus:ring-4 focus:ring-blue-500/20 outline-none"
 						/>
 					</div>
-					<div>
-						<label
-							for="status"
-							class="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2"
-							>Estado</label
+
+					<div class="col-span-2">
+						<label for="st" class="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2"
+							>Estado de Publicación</label
 						>
-						<select
-							id="status"
-							bind:value={formData.status}
-							class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-						>
-							<option>Publicado</option>
-							<option>Borrador</option>
-						</select>
+						<div class="flex gap-4">
+							<label class="flex-1 cursor-pointer">
+								<input
+									type="radio"
+									name="status"
+									value={LibretaStatus.BORRADOR}
+									bind:group={formData.status}
+									class="hidden peer"
+								/>
+								<div
+									class="p-4 rounded-2xl border-2 border-gray-200 dark:border-gray-700 peer-checked:border-yellow-500 peer-checked:bg-yellow-50 dark:peer-checked:bg-yellow-900/10 transition-all text-center"
+								>
+									<span class="block text-lg mb-1">📝</span>
+									<span class="font-bold text-sm">Borrador</span>
+								</div>
+							</label>
+							<label class="flex-1 cursor-pointer">
+								<input
+									type="radio"
+									name="status"
+									value={LibretaStatus.PUBLICADO}
+									bind:group={formData.status}
+									class="hidden peer"
+								/>
+								<div
+									class="p-4 rounded-2xl border-2 border-gray-200 dark:border-gray-700 peer-checked:border-green-500 peer-checked:bg-green-50 dark:peer-checked:bg-green-900/10 transition-all text-center"
+								>
+									<span class="block text-lg mb-1">🚀</span>
+									<span class="font-bold text-sm">Publicar</span>
+								</div>
+							</label>
+						</div>
 					</div>
 				</div>
-				<div class="flex justify-end gap-4 mt-6">
+
+				<div class="flex gap-4 pt-4">
 					<button
 						type="button"
 						onclick={() => (showModal = false)}
-						class="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 font-semibold transition-colors"
+						class="flex-1 py-4 px-6 border border-gray-300 dark:border-gray-600 rounded-2xl font-black text-gray-600 dark:text-gray-400 hover:bg-gray-50 transition-colors"
 					>
 						Cancelar
 					</button>
 					<button
 						type="submit"
 						disabled={loading}
-						class="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+						class="flex-[2] py-4 px-6 bg-gradient-to-r from-[#6E7D4E] to-[#5a6640] text-white rounded-2xl font-black shadow-xl shadow-lime-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
 					>
-						{loading ? 'Guardando...' : editingBoletin ? 'Actualizar' : 'Guardar'}
+						{loading
+							? 'Sincronizando...'
+							: editingLibreta
+								? 'Actualizar Registro'
+								: 'Confirmar e Guardar'}
 					</button>
 				</div>
 			</form>
@@ -769,19 +572,17 @@
 
 <style>
 	.animate-fade-in {
-		animation: fadeIn 0.5s ease-out forwards;
+		animation: fadeIn 0.4s ease-out;
 	}
 	.animate-slide-up {
-		animation: slideUp 0.3s ease-out forwards;
+		animation: slideUp 0.3s ease-out;
 	}
 	@keyframes fadeIn {
 		from {
 			opacity: 0;
-			transform: translateY(10px);
 		}
 		to {
 			opacity: 1;
-			transform: translateY(0);
 		}
 	}
 	@keyframes slideUp {
@@ -792,6 +593,21 @@
 		to {
 			opacity: 1;
 			transform: translateY(0);
+		}
+	}
+	.animate-shake {
+		animation: shake 0.5s linear;
+	}
+	@keyframes shake {
+		0%,
+		100% {
+			transform: translateX(0);
+		}
+		25% {
+			transform: translateX(-4px);
+		}
+		75% {
+			transform: translateX(4px);
 		}
 	}
 </style>

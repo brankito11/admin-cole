@@ -12,28 +12,21 @@
 
 	onMount(async () => {
 		try {
-			// Get token from localStorage
-			if (!browser) {
-				error = 'No se puede acceder al almacenamiento';
-				loading = false;
-				return;
-			}
+			if (!browser) return;
 
-			const token = localStorage.getItem(AUTH_TOKEN_KEY);
-			if (!token) {
-				// Redirect to login if no token found
-				goto('/auth/sign-in');
-				return;
-			}
-
+			// Use the service directly, it now handles the token via apiCole
 			try {
-				const response = await reunionService.getAllReuniones(token);
-				
-				// Map API response to UI format
-				meetings = response.map((reunion: Reunion) => {
-					const meetingDate = new Date(reunion.fecha);
+				const response = await reunionService.getAllReuniones();
+				const data = (response as any).data || response;
+				const rawMeetings = Array.isArray(data) ? data : [];
+
+				// Map API response to UI format with correct field names
+				meetings = rawMeetings.map((reunion: any) => {
+					// Backend uses 'fecha_hora' for ISO date
+					const dateStr = reunion.fecha_hora || reunion.fecha;
+					const meetingDate = dateStr ? new Date(dateStr) : new Date();
+
 					const today = new Date();
-					// Reset hours for accurate date comparison
 					today.setHours(0, 0, 0, 0);
 					const meetingDateOnly = new Date(meetingDate);
 					meetingDateOnly.setHours(0, 0, 0, 0);
@@ -41,22 +34,19 @@
 					const isFinished = meetingDateOnly < today;
 
 					return {
-						id: reunion._id,
-						title: reunion.nombre_reunion,
-						date: reunion.fecha,
-						time: reunion.hora_inicio,
-						location: 'A confirmar', // Default value as it's not in the interface
-						type: reunion.tema,
+						id: reunion._id || reunion.id,
+						title: reunion.titulo || reunion.nombre_reunion || 'Sin título',
+						date: meetingDate,
+						time: meetingDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+						location: 'Aula Virtual / Presencial',
+						type: reunion.descripcion || reunion.tema || 'Actividad',
 						status: isFinished ? 'Finalizada' : 'Programada'
 					};
 				});
 			} catch (apiError) {
-				// If API fails, just show empty state instead of breaking
 				console.error('Error fetching reuniones:', apiError);
 				meetings = [];
-				error = null; // Don't show error, just empty state
 			}
-
 		} catch (e) {
 			console.error('Error general:', e);
 			error = 'Error al cargar las reuniones';
@@ -66,76 +56,149 @@
 	});
 </script>
 
-<div class="space-y-6 animate-fade-in">
-	<div>
-		<h1 class="text-3xl font-bold text-gray-900 dark:text-white">Reuniones y Eventos</h1>
-		<p class="text-gray-600 dark:text-gray-400 mt-1">Mantente al día con las actividades escolares</p>
+<div class="max-w-6xl mx-auto space-y-8 animate-fade-in p-4">
+	<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+		<div>
+			<h1
+				class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400"
+			>
+				Reuniones y Eventos
+			</h1>
+			<p class="text-gray-600 dark:text-gray-400 mt-2 text-lg">
+				Mantente conectado con la comunidad escolar y las actividades de tus hijos.
+			</p>
+		</div>
+		<div
+			class="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-2xl border border-indigo-100 dark:border-indigo-800"
+		>
+			<span class="text-indigo-600 dark:text-indigo-400 font-bold">{meetings.length}</span>
+			<span class="text-indigo-600 dark:text-indigo-400 text-sm font-medium">Eventos totales</span>
+		</div>
 	</div>
 
 	{#if loading}
-		<div class="flex justify-center items-center py-12">
-			<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+		<div class="flex flex-col justify-center items-center py-20 gap-4">
+			<div class="relative w-16 h-16">
+				<div class="absolute inset-0 border-4 border-indigo-200 rounded-full"></div>
+				<div
+					class="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"
+				></div>
+			</div>
+			<p class="text-indigo-600 dark:text-indigo-400 font-medium animate-pulse">
+				Sincronizando calendario...
+			</p>
 		</div>
 	{:else if error}
 		<div
-			class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative"
-			role="alert"
+			class="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 p-8 rounded-3xl text-center"
 		>
-			<strong class="font-bold">Error!</strong>
-			<span class="block sm:inline">{error}</span>
+			<span class="text-4xl mb-4 block">⚠️</span>
+			<h3 class="text-xl font-bold text-red-800 dark:text-red-400 mb-2">¡Ups! Algo salió mal</h3>
+			<p class="text-red-600 dark:text-red-300">{error}</p>
+			<button
+				onclick={() => window.location.reload()}
+				class="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors"
+			>
+				Reintentar
+			</button>
 		</div>
 	{:else if meetings.length === 0}
-		<div class="text-center py-12 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600">
-			<p class="text-gray-500 dark:text-gray-400 text-lg">No hay reuniones programadas.</p>
+		<div
+			class="text-center py-20 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700 shadow-sm"
+		>
+			<div class="text-6xl mb-6">📅</div>
+			<h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+				No hay novedades por ahora
+			</h3>
+			<p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+				No tienes reuniones ni eventos programados próximamente. Te avisaremos cuando haya algo
+				nuevo.
+			</p>
 		</div>
 	{:else}
 		<div class="grid gap-6">
 			{#each meetings as meeting}
 				<div
-					class="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 flex flex-col md:flex-row md:items-center gap-6 hover:shadow-lg transition-shadow duration-300"
+					class="group bg-white dark:bg-gray-800 rounded-3xl shadow-sm hover:shadow-2xl border border-gray-100 dark:border-gray-700 overflow-hidden transition-all duration-500 transform hover:-translate-y-1"
 				>
-					<div
-						class="flex-shrink-0 w-16 h-16 bg-indigo-50 rounded-xl flex flex-col items-center justify-center text-indigo-600 border border-indigo-100"
-					>
-						<span class="text-xs font-bold uppercase"
-							>{new Date(meeting.date).toLocaleString('es-ES', { month: 'short' })}</span
+					<div class="flex flex-col md:flex-row items-stretch">
+						<!-- Date Section -->
+						<div
+							class="md:w-32 bg-gradient-to-br from-indigo-500 to-purple-600 p-6 flex flex-col items-center justify-center text-white text-center"
 						>
-						<span class="text-2xl font-bold">{new Date(meeting.date).getDate()}</span>
-					</div>
+							<span class="text-xs font-bold uppercase tracking-wider opacity-80">
+								{meeting.date.toLocaleString('es-ES', { month: 'short' })}
+							</span>
+							<span class="text-4xl font-black my-1">{meeting.date.getDate()}</span>
+							<span class="text-xs font-medium">{meeting.date.getFullYear()}</span>
+						</div>
 
-					<div class="flex-1">
-						<div class="flex items-center gap-3 mb-1">
-							<h3 class="text-xl font-bold text-gray-900 dark:text-white">{meeting.title}</h3>
-							<span
-								class="px-2 py-0.5 text-xs font-bold rounded-full bg-indigo-100 text-indigo-700"
-							>
+						<!-- Content Section -->
+						<div class="flex-1 p-6 flex flex-col justify-center">
+							<div class="flex flex-wrap items-center gap-3 mb-3">
+								<h3
+									class="text-2xl font-extrabold text-gray-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors"
+								>
+									{meeting.title}
+								</h3>
+								<span
+									class="px-3 py-1 text-xs font-black rounded-full uppercase tracking-tighter shadow-sm
+									{meeting.status === 'Programada'
+										? 'bg-green-100 text-green-700 border border-green-200'
+										: 'bg-gray-100 text-gray-600 border border-gray-200'}"
+								>
+									{meeting.status}
+								</span>
+							</div>
+
+							<p class="text-gray-600 dark:text-gray-400 mb-4 line-clamp-2 leading-relaxed">
 								{meeting.type}
-							</span>
-						</div>
-						<div class="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-300">
-							<span class="flex items-center gap-1">
-								<span>⏰</span>
-								{meeting.time}
-							</span>
-							<span class="flex items-center gap-1">
-								<span>📍</span>
-								{meeting.location}
-							</span>
-						</div>
-					</div>
+							</p>
 
-					<div class="flex items-center gap-3">
-						{#if meeting.status === 'Programada'}
-							<button
-								class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
-							>
-								Confirmar
-							</button>
-						{:else}
-							<span class="px-4 py-2 bg-gray-100 text-gray-500 rounded-lg font-medium">
-								Finalizada
-							</span>
-						{/if}
+							<div class="flex flex-wrap gap-6">
+								<div class="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+									<div
+										class="w-8 h-8 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400"
+									>
+										⏰
+									</div>
+									<span class="font-bold text-sm">{meeting.time}</span>
+								</div>
+								<div class="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+									<div
+										class="w-8 h-8 rounded-full bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400"
+									>
+										📍
+									</div>
+									<span class="font-bold text-sm">{meeting.location}</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- Action Section -->
+						<div
+							class="p-6 bg-gray-50/50 dark:bg-gray-900/20 border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-700 flex flex-col justify-center items-center"
+						>
+							{#if meeting.status === 'Programada'}
+								<button
+									class="w-full md:w-auto px-8 py-3 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none hover:bg-indigo-700 transform active:scale-95 transition-all"
+								>
+									Asistir
+								</button>
+								<button
+									class="mt-3 text-sm font-bold text-gray-400 hover:text-red-500 transition-colors"
+								>
+									No podré asistir
+								</button>
+							{:else}
+								<button
+									disabled
+									class="w-full md:w-auto px-8 py-3 bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 rounded-2xl font-bold cursor-not-allowed"
+								>
+									Evento Pasado
+								</button>
+							{/if}
+						</div>
 					</div>
 				</div>
 			{/each}

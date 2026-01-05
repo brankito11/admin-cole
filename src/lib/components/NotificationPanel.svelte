@@ -3,7 +3,7 @@
 	import { fade, fly } from 'svelte/transition';
 	import { notificationService } from '$lib/services';
 	import { auth } from '$lib/stores/auth';
-	import type { Notification, NotificationType } from '$lib/interfaces';
+	import { NotificationType, type Notification } from '$lib/interfaces';
 	import { goto } from '$app/navigation';
 
 	export let isOpen = false;
@@ -14,15 +14,38 @@
 	let selectedFilter: NotificationType | 'all' = 'all';
 	let unreadCount = 0;
 
-	// Obtener el rol del usuario
-	$: userRole = $auth?.role;
+	// Obtener el rol del usuario (hacerlo insensible a mayúsculas/minúsculas)
+	$: userRole = ($auth?.role || '').toLowerCase();
 	$: isAdmin = userRole === 'admin' || $auth?.is_superuser;
 
-	// Filtrar notificaciones según el filtro seleccionado
-	$: filteredNotifications =
-		selectedFilter === 'all'
-			? notifications
-			: notifications.filter((n) => n.type === selectedFilter);
+	// Filtrar notificaciones según el rol y el filtro seleccionado
+	$: filteredNotifications = notifications.filter((n) => {
+		// Log para cada reporte de filtrado (ayuda a depurar)
+		const isAllowedByRole = isAdmin
+			? [
+					NotificationType.PAYMENT_RECEIVED,
+					NotificationType.LICENSE_REQUEST,
+					NotificationType.STUDENT_ABSENCE
+				].includes(n.type)
+			: [
+					NotificationType.PAYMENT_PENDING,
+					NotificationType.ANNOUNCEMENT,
+					NotificationType.EVENT,
+					NotificationType.MEETING
+				].includes(n.type);
+
+		// DEBUG: Loguear por qué se filtra
+		if (!isAllowedByRole) {
+			console.log(
+				`🚫 Notificación tipo ${n.type} filtrada por rol ${userRole}. Usuario es Admin: ${isAdmin}`
+			);
+		}
+
+		if (!isAllowedByRole) return false;
+
+		// Luego filtrar por el filtro seleccionado
+		return selectedFilter === 'all' ? true : n.type === selectedFilter;
+	});
 
 	// Obtener icono según el tipo de notificación
 	function getNotificationIcon(type: NotificationType): string {
@@ -68,6 +91,7 @@
 		try {
 			loading = true;
 			notifications = await notificationService.getNotifications({ limit: 50 });
+			console.log('🔔 Notificaciones cargadas:', notifications);
 			unreadCount = notifications.filter((n) => !n.is_read).length;
 		} catch (error) {
 			console.error('Error al cargar notificaciones:', error);
@@ -144,7 +168,6 @@
 		}
 	}
 
-
 	onMount(() => {
 		if (isOpen) {
 			loadNotifications();
@@ -209,7 +232,9 @@
 					<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
 				</div>
 			{:else if filteredNotifications.length === 0}
-				<div class="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 p-8">
+				<div
+					class="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 p-8"
+				>
 					<span class="text-6xl mb-4">🔔</span>
 					<p class="text-center text-gray-500 dark:text-gray-400">No hay notificaciones</p>
 				</div>
@@ -244,23 +269,27 @@
 										>
 											{notification.title}
 										</h3>
-										{#if !notification.is_read}
-											<span class="w-2.5 h-2.5 bg-cyan-500 rounded-full flex-shrink-0 mt-1.5 animate-pulse"></span>
-										{/if}
+										<div class="flex items-center gap-2">
+											{#if !notification.is_read}
+												<span
+													class="w-2.5 h-2.5 bg-cyan-500 rounded-full flex-shrink-0 animate-pulse"
+												></span>
+											{/if}
+										</div>
 									</div>
 
 									<p class="text-sm text-gray-600 dark:text-gray-300 mb-2 line-clamp-2">
 										{notification.message}
 									</p>
 
-									<div class="flex items-center gap-2 flex-wrap">
+									<div class="flex items-center justify-between gap-2 flex-wrap">
 										<span class="text-xs text-gray-500 dark:text-gray-400 font-medium">
 											{formatRelativeTime(notification.created_at)}
 										</span>
 
 										<!-- Badge de categoría -->
 										<span
-											class="text-xs px-2.5 py-1 rounded-full font-semibold {getCategoryColor(
+											class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider border {getCategoryColor(
 												notification.category
 											)}"
 										>
@@ -277,7 +306,9 @@
 
 		<!-- Footer -->
 		{#if unreadCount > 0}
-			<div class="border-t border-gray-200 dark:border-gray-700 p-4 flex-shrink-0 bg-gray-50 dark:bg-gray-800">
+			<div
+				class="border-t border-gray-200 dark:border-gray-700 p-4 flex-shrink-0 bg-gray-50 dark:bg-gray-800"
+			>
 				<button
 					on:click={markAllAsRead}
 					class="w-full bg-gradient-to-r from-cyan-400 to-blue-500 text-white py-2.5 px-4 rounded-lg font-medium hover:from-cyan-500 hover:to-blue-600 transition-all"
