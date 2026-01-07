@@ -10,7 +10,8 @@
 	let bellComponent: NotificationBell;
 
 	function getPageTitle(pathname: string) {
-		if (pathname.includes('/boletines') || pathname.includes('/boletin-notas')) return 'Boletín de Notas';
+		if (pathname.includes('/boletines') || pathname.includes('/boletin-notas'))
+			return 'Boletín de Notas';
 		if (pathname.includes('/licencias')) return 'Licencias';
 		if (pathname.includes('/pagos')) return 'Pagos';
 		if (pathname.includes('/reuniones')) return 'Reuniones';
@@ -27,6 +28,13 @@
 	function closePanel() {
 		isPanelOpen = false;
 		// Refrescar el contador cuando se cierra el panel
+		if (bellComponent) {
+			bellComponent.refresh();
+		}
+	}
+
+	function handleNotificationsRead() {
+		// Refrescar el badge inmediatamente cuando se marcan notificaciones como leídas
 		if (bellComponent) {
 			bellComponent.refresh();
 		}
@@ -66,4 +74,8 @@
 </header>
 
 <!-- Panel de notificaciones -->
-<NotificationPanel isOpen={isPanelOpen} onClose={closePanel} />
+<NotificationPanel
+	isOpen={isPanelOpen}
+	onClose={closePanel}
+	onNotificationsRead={handleNotificationsRead}
+/>

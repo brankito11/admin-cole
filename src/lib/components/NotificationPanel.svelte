@@ -8,6 +8,7 @@
 
 	export let isOpen = false;
 	export let onClose: () => void;
+	export let onNotificationsRead: () => void = () => {}; // Callback para notificar cuando se leen notificaciones
 
 	let notifications: Notification[] = [];
 	let loading = true;
@@ -108,6 +109,8 @@
 				await notificationService.markAsRead(notification._id);
 				notification.is_read = true;
 				unreadCount = Math.max(0, unreadCount - 1);
+				// Notificar al padre para actualizar el badge
+				onNotificationsRead();
 			}
 
 			if (notification.link) {
@@ -125,6 +128,8 @@
 			await notificationService.markAllAsRead();
 			notifications = notifications.map((n) => ({ ...n, is_read: true }));
 			unreadCount = 0;
+			// Notificar al padre para actualizar el badge
+			onNotificationsRead();
 		} catch (error) {
 			console.error('Error al marcar todas como leídas:', error);
 		}

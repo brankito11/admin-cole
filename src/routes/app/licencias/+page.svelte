@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fade, fly, slide } from 'svelte/transition';
-	import { hijoService, licenciaService, padreService } from '$lib/services';
+	import { hijoService, licenciaService, padreService, notificationService } from '$lib/services';
 	import { studentService } from '$lib/services/student.service';
 	import type { Hijo, Licencia } from '$lib/interfaces';
+	import { NotificationType } from '$lib/interfaces';
 	import { auth } from '$lib/stores/auth';
 
 	let licencias = $state<any[]>([]);
@@ -159,6 +160,7 @@
 			};
 			const tipoBackend = tipoMap[tipoLicencia] || tipoLicencia.toUpperCase();
 
+			let result;
 			if (selectedFile) {
 				const formData = new FormData();
 				// Mandamos ambos por compatibilidad
@@ -174,7 +176,7 @@
 				formData.append('duracion', calculateDuration());
 				formData.append('file', selectedFile);
 
-				await licenciaService.createLicenciaWithFile(formData);
+				result = await licenciaService.createLicenciaWithFile(formData);
 			} else {
 				// Fallback a JSON si no hay archivo
 				const payload = {
@@ -188,7 +190,38 @@
 					motivo: motivo || '',
 					duracion: calculateDuration()
 				};
-				await licenciaService.createLicencia(payload as any);
+				result = await licenciaService.createLicencia(payload as any);
+			}
+
+			// Crear notificación para el administrador
+			try {
+				console.log('📢 Creando notificación para administrador sobre nueva licencia...');
+				const studentName =
+					`${selectedHijo.nombre || selectedHijo.nombres} ${selectedHijo.apellido || selectedHijo.apellidos}`.trim();
+				const notifData = {
+					title: 'Nueva Solicitud de Licencia',
+					message: `${studentName} tiene una nueva solicitud de ${tipoLicencia.toLowerCase()}`,
+					type: NotificationType.LICENSE_REQUEST,
+					category: 'info' as any,
+					link: '/admin/licencias',
+					metadata: {
+						licencia_id: (result as any)._id || (result as any).id,
+						studentId: studentId,
+						studentName: studentName,
+						tipo: tipoLicencia,
+						fecha_inicio: fechaInicio,
+						fecha_fin: fechaFin
+					}
+				};
+				console.log('📦 Enviando datos de notificación:', notifData);
+				const nResult = await notificationService.createNotification(notifData as any);
+				console.log('✅ Notificación creada exitosamente:', nResult);
+			} catch (nErr) {
+				console.error('❌ Error al crear la notificación:', nErr);
+				console.warn(
+					'⚠️ La licencia se creó correctamente, pero no se pudo notificar al administrador.',
+					nErr
+				);
 			}
 
 			alert('Solicitud enviada exitosamente');
