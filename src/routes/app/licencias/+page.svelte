@@ -166,14 +166,11 @@
 				// Mandamos ambos por compatibilidad
 				formData.append('hijo_id', studentId);
 				formData.append('estudiante_id', studentId);
-				formData.append('padre_id', $auth._id);
-
 				formData.append('tipo', tipoBackend);
 				formData.append('tipo_permiso', tipoBackend);
 				formData.append('fecha_inicio', fechaInicio);
 				formData.append('fecha_fin', fechaFin);
 				formData.append('motivo', motivo || '');
-				formData.append('duracion', calculateDuration());
 				formData.append('file', selectedFile);
 
 				result = await licenciaService.createLicenciaWithFile(formData);
@@ -182,13 +179,11 @@
 				const payload = {
 					hijo_id: studentId,
 					estudiante_id: studentId,
-					padre_id: $auth._id,
 					tipo: tipoBackend,
 					tipo_permiso: tipoBackend,
 					fecha_inicio: fechaInicio,
 					fecha_fin: fechaFin,
-					motivo: motivo || '',
-					duracion: calculateDuration()
+					motivo: motivo || ''
 				};
 				result = await licenciaService.createLicencia(payload as any);
 			}
@@ -207,7 +202,10 @@
 					metadata: {
 						licencia_id: (result as any)._id || (result as any).id,
 						studentId: studentId,
+						estudiante_id: studentId,
+						hijo_id: studentId,
 						studentName: studentName,
+						padre_id: $auth?._id,
 						tipo: tipoLicencia,
 						fecha_inicio: fechaInicio,
 						fecha_fin: fechaFin

@@ -15,9 +15,19 @@
 	let selectedFilter: NotificationType | 'all' = 'all';
 	let unreadCount = 0;
 
-	// Obtener el rol del usuario (hacerlo insensible a mayúsculas/minúsculas)
+	// Obtener el rol del usuario de forma robusta
 	$: userRole = ($auth?.role || '').toLowerCase();
-	$: isAdmin = userRole === 'admin' || $auth?.is_superuser;
+	// Una detección más inclusiva para administradores
+	$: isAdmin =
+		userRole === 'admin' ||
+		userRole === 'administrador' ||
+		userRole === 'admin-cole' ||
+		$auth?.is_superuser;
+
+	// Recargar notificaciones cuando se abre el panel
+	$: if (isOpen) {
+		loadNotifications();
+	}
 
 	// Filtrar notificaciones según el rol y el filtro seleccionado
 	$: filteredNotifications = notifications.filter((n) => {
@@ -79,10 +89,10 @@
 	// Obtener color según la categoría
 	function getCategoryColor(category: string): string {
 		const colors = {
-			success: 'bg-green-100 text-green-800 border-green-200',
-			warning: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-			error: 'bg-red-100 text-red-800 border-red-200',
-			info: 'bg-blue-100 text-blue-800 border-blue-200'
+			success: 'bg-green-50 text-green-700 border-green-200',
+			warning: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+			error: 'bg-red-50 text-red-700 border-red-200',
+			info: 'bg-blue-50 text-blue-700 border-blue-200'
 		};
 		return colors[category as keyof typeof colors] || colors.info;
 	}
