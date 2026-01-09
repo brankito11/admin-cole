@@ -29,38 +29,16 @@
 		loadNotifications();
 	}
 
-	// Filtrar notificaciones según el rol y el filtro seleccionado
+	// Filtrar notificaciones según el filtro seleccionado
 	$: filteredNotifications = notifications.filter((n) => {
-		// Log para cada reporte de filtrado (ayuda a depurar)
-		const isAllowedByRole = isAdmin
-			? [
-					NotificationType.PAYMENT_RECEIVED,
-					NotificationType.LICENSE_REQUEST,
-					NotificationType.STUDENT_ABSENCE
-				].includes(n.type)
-			: [
-					NotificationType.PAYMENT_PENDING,
-					NotificationType.ANNOUNCEMENT,
-					NotificationType.EVENT,
-					NotificationType.MEETING
-				].includes(n.type);
-
-		// DEBUG: Loguear por qué se filtra
-		if (!isAllowedByRole) {
-			console.log(
-				`🚫 Notificación tipo ${n.type} filtrada por rol ${userRole}. Usuario es Admin: ${isAdmin}`
-			);
-		}
-
-		if (!isAllowedByRole) return false;
-
-		// Luego filtrar por el filtro seleccionado
+		// Ya no filtramos por rol en el cliente para permitir que el backend decida qué enviar,
+		// y aseguramos que todos los tipos sean visibles si el usuario tiene permiso de verlos.
 		return selectedFilter === 'all' ? true : n.type === selectedFilter;
 	});
 
 	// Obtener icono según el tipo de notificación
 	function getNotificationIcon(type: NotificationType): string {
-		const icons = {
+		const icons: Record<string, string> = {
 			payment_received: '💰',
 			payment_pending: '💰',
 			license_request: '📋',
@@ -75,13 +53,13 @@
 	// Obtener gradiente según el tipo de notificación
 	function getNotificationGradient(type: NotificationType): string {
 		const gradients: Record<string, string> = {
-			payment_received: 'from-teal-400 to-cyan-500', // Pagos
-			payment_pending: 'from-teal-400 to-cyan-500',
-			license_request: 'from-sky-400 to-cyan-500', // Licencias
-			student_absence: 'from-pink-500 to-rose-500', // Faltas (distinct color)
-			announcement: 'from-blue-400 to-indigo-500', // Boletines/General
-			event: 'from-cyan-400 to-blue-500', // Reuniones
-			meeting: 'from-cyan-400 to-blue-500'
+			payment_received: 'from-emerald-400 to-teal-500', // Pagos recibidos
+			payment_pending: 'from-amber-400 to-orange-500', // Pagos pendientes
+			license_request: 'from-sky-400 to-indigo-500', // Licencias
+			student_absence: 'from-rose-500 to-red-600', // Faltas
+			announcement: 'from-purple-400 to-fuchsia-500', // Avisos
+			event: 'from-cyan-400 to-blue-500', // Eventos
+			meeting: 'from-blue-400 to-indigo-600' // Reuniones
 		};
 		return gradients[type] || 'from-cyan-400 to-blue-500';
 	}

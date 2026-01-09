@@ -37,11 +37,11 @@
 
 	const getStatusStyle = (status: string) => {
 		const s = status?.toLowerCase() || '';
-		if (s.includes('aprobada'))
+		if (s.includes('aprobada') || s === 'aprobado')
 			return 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800';
 		if (s.includes('pendiente'))
 			return 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800';
-		if (s.includes('rechazada'))
+		if (s.includes('rechazada') || s === 'rechazado')
 			return 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800';
 		return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700';
 	};
@@ -319,6 +319,21 @@
 						} catch (e) {}
 					}
 
+					let normalizedStatus = l.estado || l.status || 'Pendiente';
+					if (
+						normalizedStatus.toLowerCase().includes('aprobada') ||
+						normalizedStatus.toLowerCase() === 'aprobado'
+					) {
+						normalizedStatus = 'Aprobada';
+					} else if (
+						normalizedStatus.toLowerCase().includes('rechazada') ||
+						normalizedStatus.toLowerCase() === 'rechazado'
+					) {
+						normalizedStatus = 'Rechazada';
+					} else if (normalizedStatus.toLowerCase().includes('pendiente')) {
+						normalizedStatus = 'Pendiente';
+					}
+
 					return {
 						...l,
 						id: normalizeId(l._id || l.id || 'S/I'),
@@ -328,7 +343,7 @@
 						date: l.fecha_inicio || l.date || 'N/A',
 						duration: dur || '1 día',
 						reason: l.motivo || l.reason || 'S/M',
-						status: l.estado || l.status || 'Pendiente',
+						status: normalizedStatus,
 						nivel: courseObj ? courseObj.nivel : l.nivel || est.nivel || 'S/G',
 						grade: courseObj ? courseObj.nombre : sGrade || 'S/G',
 						shift: courseObj ? courseObj.turno : sShift || 'M',
@@ -818,6 +833,22 @@
 							</td>
 							<td class="px-6 py-4 whitespace-nowrap text-sm">
 								<div class="flex items-center gap-2">
+									{#if license.status === 'Pendiente'}
+										<button
+											onclick={() => handleApprove(license.id)}
+											class="text-emerald-600 hover:text-emerald-900 font-medium p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg transition-colors"
+											title="Aprobar Rápidamente"
+										>
+											✔
+										</button>
+										<button
+											onclick={() => handleReject(license.id)}
+											class="text-rose-600 hover:text-rose-900 font-medium p-2 bg-rose-50 dark:bg-rose-900/30 rounded-lg transition-colors"
+											title="Rechazar Rápidamente"
+										>
+											✖
+										</button>
+									{/if}
 									<button
 										onclick={() => viewDetails(license)}
 										class="text-cyan-600 hover:text-cyan-900 font-medium p-2 bg-cyan-50 dark:bg-cyan-900/30 rounded-lg transition-colors"
@@ -1275,7 +1306,7 @@
 						</div>
 					</div>
 
-					{#if selectedLicenseForDetails.status === 'Pendiente'}
+					{#if selectedLicenseForDetails.status.toLowerCase().includes('pendiente')}
 						<div class="space-y-4 pt-4">
 							<h3 class="text-lg font-bold text-gray-900 dark:text-white">Acciones de Gestión</h3>
 							<div>

@@ -19,8 +19,16 @@ class NotificationService {
 			const query = params.toString();
 			const endpoint = `/notificaciones${query ? `?${query}` : ''}`;
 
-			const response = await apiCole.get<NotificationResponse>(endpoint);
-			return Array.isArray(response) ? response : [];
+			const response = await apiCole.get<NotificationResponse | any>(endpoint);
+
+			// Handle both direct array response and object { data: [] } response
+			if (Array.isArray(response)) {
+				return response;
+			} else if (response && Array.isArray(response.data)) {
+				return response.data;
+			}
+
+			return [];
 		} catch (error) {
 			console.error('Error fetching notifications:', error);
 			return [];
@@ -46,7 +54,16 @@ class NotificationService {
 
 	async getStats(): Promise<NotificationStats> {
 		try {
-			return await apiCole.get<NotificationStats>('/notificaciones/stats');
+			const response = await apiCole.get<NotificationStats | any>('/notificaciones/stats');
+
+			// Handle both direct response and object { data: { ... } } response
+			if (response && response.unread !== undefined) {
+				return response;
+			} else if (response && response.data && response.data.unread !== undefined) {
+				return response.data;
+			}
+
+			return { total: 0, unread: 0, byType: {} };
 		} catch (error) {
 			console.error('Error fetching notification stats:', error);
 			return { total: 0, unread: 0, byType: {} };
